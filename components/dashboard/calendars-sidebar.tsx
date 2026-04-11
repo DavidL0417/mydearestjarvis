@@ -69,7 +69,7 @@ function ColorPicker({
         <button
           key={color.value}
           onClick={() => onSelect(color.value)}
-          className="relative w-8 h-8 rounded-full transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#1a1a1a] focus:ring-white/20"
+          className="relative w-8 h-8 rounded-full transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-card dark:focus:ring-offset-[#1a1a1a] focus:ring-ring"
           style={{ backgroundColor: color.value }}
           title={color.name}
         >
@@ -85,13 +85,13 @@ function ColorPicker({
 function CalendarSourceIcon({ source }: { source: Calendar["source"] }) {
   switch (source) {
     case "google":
-      return <Globe className="w-3 h-3 text-muted-foreground" />
+      return <Globe className="w-3.5 h-3.5 text-muted-foreground" />
     case "icloud":
-      return <Cloud className="w-3 h-3 text-muted-foreground" />
+      return <Cloud className="w-3.5 h-3.5 text-muted-foreground" />
     case "imported":
-      return <Download className="w-3 h-3 text-muted-foreground" />
+      return <Download className="w-3.5 h-3.5 text-muted-foreground" />
     default:
-      return <Monitor className="w-3 h-3 text-muted-foreground" />
+      return <Monitor className="w-3.5 h-3.5 text-muted-foreground" />
   }
 }
 
@@ -119,10 +119,10 @@ function CalendarItem({
   return (
     <>
       <div
-        className={`group flex items-center gap-3 px-3 py-2 rounded-lg transition-colors cursor-pointer ${
+        className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors cursor-pointer ${
           isActive
-            ? "bg-[#2a2a2a]"
-            : "hover:bg-[#1f1f1f]"
+            ? "bg-secondary dark:bg-[#2a2a2a]"
+            : "hover:bg-secondary/50 dark:hover:bg-[#1f1f1f]"
         }`}
         onClick={onSelect}
       >
@@ -130,18 +130,18 @@ function CalendarItem({
           checked={calendar.visible}
           onCheckedChange={() => toggleCalendarVisibility(calendar.id)}
           onClick={(e) => e.stopPropagation()}
-          className="border-[#3a3a3a] data-[state=checked]:border-transparent"
+          className="border-border dark:border-[#3a3a3a] data-[state=checked]:border-transparent"
           style={{
             backgroundColor: calendar.visible ? calendar.color : "transparent",
             borderColor: calendar.visible ? calendar.color : undefined,
           }}
         />
         <div
-          className="w-2.5 h-2.5 rounded-full shrink-0"
+          className="w-3 h-3 rounded-full shrink-0"
           style={{ backgroundColor: calendar.color }}
         />
         <div className="flex-1 min-w-0">
-          <p className="text-[13px] font-medium text-foreground truncate">{calendar.name}</p>
+          <p className="text-sm font-semibold text-foreground truncate">{calendar.name}</p>
         </div>
         <CalendarSourceIcon source={calendar.source} />
         <DropdownMenu>
@@ -149,39 +149,39 @@ function CalendarItem({
             <Button
               variant="ghost"
               size="sm"
-              className="opacity-0 group-hover:opacity-100 h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-[#2a2a2a]"
+              className="opacity-0 group-hover:opacity-100 h-7 w-7 p-0 text-muted-foreground hover:text-foreground hover:bg-secondary dark:hover:bg-[#2a2a2a]"
               onClick={(e) => e.stopPropagation()}
             >
-              <MoreHorizontal className="w-3.5 h-3.5" />
+              <MoreHorizontal className="w-4 h-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="end"
-            className="w-40 bg-[#1a1a1a] border-[#2a2a2a]"
+            className="w-44 bg-card dark:bg-[#1a1a1a] border-border dark:border-[#2a2a2a]"
           >
             <DropdownMenuItem
-              className="text-[12px] text-foreground hover:bg-[#2a2a2a] cursor-pointer"
+              className="text-sm font-medium text-foreground hover:bg-secondary dark:hover:bg-[#2a2a2a] cursor-pointer"
               onClick={() => {
                 setNewName(calendar.name)
                 setRenameDialogOpen(true)
               }}
             >
-              <Pencil className="w-3.5 h-3.5 mr-2" />
+              <Pencil className="w-4 h-4 mr-2" />
               Rename
             </DropdownMenuItem>
             <Popover open={colorPickerOpen} onOpenChange={setColorPickerOpen}>
               <PopoverTrigger asChild>
                 <DropdownMenuItem
-                  className="text-[12px] text-foreground hover:bg-[#2a2a2a] cursor-pointer"
+                  className="text-sm font-medium text-foreground hover:bg-secondary dark:hover:bg-[#2a2a2a] cursor-pointer"
                   onSelect={(e) => e.preventDefault()}
                 >
-                  <Palette className="w-3.5 h-3.5 mr-2" />
+                  <Palette className="w-4 h-4 mr-2" />
                   Change Color
                 </DropdownMenuItem>
               </PopoverTrigger>
               <PopoverContent
                 side="right"
-                className="w-auto p-0 bg-[#1a1a1a] border-[#2a2a2a]"
+                className="w-auto p-0 bg-card dark:bg-[#1a1a1a] border-border dark:border-[#2a2a2a]"
               >
                 <ColorPicker
                   selectedColor={calendar.color}
@@ -194,12 +194,12 @@ function CalendarItem({
             </Popover>
             {!calendar.isDefault && (
               <>
-                <DropdownMenuSeparator className="bg-[#2a2a2a]" />
+                <DropdownMenuSeparator className="bg-border dark:bg-[#2a2a2a]" />
                 <DropdownMenuItem
-                  className="text-[12px] text-red-400 hover:bg-[#2a2a2a] hover:text-red-400 cursor-pointer"
+                  className="text-sm font-medium text-destructive hover:bg-secondary dark:hover:bg-[#2a2a2a] hover:text-destructive cursor-pointer"
                   onClick={() => deleteCalendar(calendar.id)}
                 >
-                  <Trash2 className="w-3.5 h-3.5 mr-2" />
+                  <Trash2 className="w-4 h-4 mr-2" />
                   Delete
                 </DropdownMenuItem>
               </>
@@ -210,10 +210,10 @@ function CalendarItem({
 
       {/* Rename Dialog */}
       <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
-        <DialogContent className="sm:max-w-[360px] bg-[#141414] border-[#2a2a2a]">
+        <DialogContent className="sm:max-w-[400px] bg-card dark:bg-[#141414] border-border dark:border-[#2a2a2a]">
           <DialogHeader>
-            <DialogTitle className="text-foreground">Rename Calendar</DialogTitle>
-            <DialogDescription className="text-muted-foreground">
+            <DialogTitle className="text-lg font-bold text-foreground">Rename Calendar</DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground">
               Enter a new name for this calendar.
             </DialogDescription>
           </DialogHeader>
@@ -221,7 +221,7 @@ function CalendarItem({
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             placeholder="Calendar name"
-            className="bg-[#0a0a0a] border-[#2a2a2a] text-foreground placeholder:text-muted-foreground"
+            className="bg-background dark:bg-[#0a0a0a] border-border dark:border-[#2a2a2a] text-foreground placeholder:text-muted-foreground text-sm"
             onKeyDown={(e) => {
               if (e.key === "Enter") handleRename()
             }}
@@ -230,13 +230,13 @@ function CalendarItem({
             <Button
               variant="ghost"
               onClick={() => setRenameDialogOpen(false)}
-              className="text-muted-foreground hover:text-foreground hover:bg-[#1f1f1f]"
+              className="text-muted-foreground hover:text-foreground hover:bg-secondary dark:hover:bg-[#1f1f1f] font-semibold"
             >
               Cancel
             </Button>
             <Button
               onClick={handleRename}
-              className="bg-[#3b82f6] text-white hover:bg-[#2563eb]"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
             >
               Save
             </Button>
@@ -281,28 +281,28 @@ export function CalendarsSidebar({ open, onOpenChange }: CalendarsSidebarProps) 
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
           side="left"
-          className="w-[300px] sm:w-[320px] bg-[#0f0f0f]/95 backdrop-blur-xl border-[#2a2a2a] p-0"
+          className="w-[320px] sm:w-[360px] bg-background/95 dark:bg-[#0f0f0f]/95 backdrop-blur-xl border-border dark:border-[#2a2a2a] p-0"
         >
-          <SheetHeader className="p-4 pb-2 border-b border-[#1f1f1f]">
-            <SheetTitle className="text-foreground text-base font-semibold">
+          <SheetHeader className="p-5 pb-3 border-b border-border dark:border-[#1f1f1f]">
+            <SheetTitle className="text-foreground text-lg font-bold">
               Calendars
             </SheetTitle>
-            <SheetDescription className="text-[11px] text-muted-foreground">
+            <SheetDescription className="text-sm font-medium text-muted-foreground">
               Manage your calendars and visibility
             </SheetDescription>
           </SheetHeader>
 
-          <ScrollArea className="flex-1 h-[calc(100vh-180px)]">
-            <div className="p-3 space-y-4">
+          <ScrollArea className="flex-1 h-[calc(100vh-200px)]">
+            <div className="p-4 space-y-5">
               {/* My Calendars Section */}
               <div>
-                <div className="flex items-center justify-between px-1 mb-2">
-                  <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                <div className="flex items-center justify-between px-1 mb-3">
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
                     My Calendars
                   </h3>
-                  <span className="text-[10px] text-muted-foreground">{localCalendars.length}</span>
+                  <span className="text-xs font-semibold text-muted-foreground">{localCalendars.length}</span>
                 </div>
-                <div className="space-y-0.5">
+                <div className="space-y-1">
                   {localCalendars.map((calendar) => (
                     <CalendarItem
                       key={calendar.id}
@@ -317,13 +317,13 @@ export function CalendarsSidebar({ open, onOpenChange }: CalendarsSidebarProps) 
               {/* Imported/Synced Calendars Section */}
               {importedCalendars.length > 0 && (
                 <div>
-                  <div className="flex items-center justify-between px-1 mb-2">
-                    <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  <div className="flex items-center justify-between px-1 mb-3">
+                    <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
                       Synced & Imported
                     </h3>
-                    <span className="text-[10px] text-muted-foreground">{importedCalendars.length}</span>
+                    <span className="text-xs font-semibold text-muted-foreground">{importedCalendars.length}</span>
                   </div>
-                  <div className="space-y-0.5">
+                  <div className="space-y-1">
                     {importedCalendars.map((calendar) => (
                       <CalendarItem
                         key={calendar.id}
@@ -339,10 +339,10 @@ export function CalendarsSidebar({ open, onOpenChange }: CalendarsSidebarProps) 
           </ScrollArea>
 
           {/* Bottom Actions */}
-          <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-[#1f1f1f] bg-[#0f0f0f]/95 backdrop-blur-xl space-y-2">
+          <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border dark:border-[#1f1f1f] bg-background/95 dark:bg-[#0f0f0f]/95 backdrop-blur-xl space-y-2">
             <Button
               onClick={() => setNewCalendarDialogOpen(true)}
-              className="w-full justify-start gap-2 bg-[#1a1a1a] hover:bg-[#2a2a2a] text-foreground border border-[#2a2a2a] text-[12px] h-9"
+              className="w-full justify-start gap-2 bg-card dark:bg-[#1a1a1a] hover:bg-secondary dark:hover:bg-[#2a2a2a] text-foreground border border-border dark:border-[#2a2a2a] text-sm font-semibold h-10"
             >
               <Plus className="w-4 h-4" />
               New Calendar
@@ -350,7 +350,7 @@ export function CalendarsSidebar({ open, onOpenChange }: CalendarsSidebarProps) 
             <Button
               variant="ghost"
               onClick={() => setImportDialogOpen(true)}
-              className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground hover:bg-[#1f1f1f] text-[12px] h-9"
+              className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground hover:bg-secondary dark:hover:bg-[#1f1f1f] text-sm font-semibold h-10"
             >
               <Download className="w-4 h-4" />
               Import Calendar
@@ -361,25 +361,25 @@ export function CalendarsSidebar({ open, onOpenChange }: CalendarsSidebarProps) 
 
       {/* New Calendar Dialog */}
       <Dialog open={newCalendarDialogOpen} onOpenChange={setNewCalendarDialogOpen}>
-        <DialogContent className="sm:max-w-[400px] bg-[#141414] border-[#2a2a2a]">
+        <DialogContent className="sm:max-w-[440px] bg-card dark:bg-[#141414] border-border dark:border-[#2a2a2a]">
           <DialogHeader>
-            <DialogTitle className="text-foreground">Create New Calendar</DialogTitle>
-            <DialogDescription className="text-muted-foreground">
+            <DialogTitle className="text-lg font-bold text-foreground">Create New Calendar</DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground">
               Add a new calendar to organize your events and tasks.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-5 py-3">
             <div className="space-y-2">
-              <label className="text-[12px] font-medium text-foreground">Calendar Name</label>
+              <label className="text-sm font-semibold text-foreground">Calendar Name</label>
               <Input
                 value={newCalendarName}
                 onChange={(e) => setNewCalendarName(e.target.value)}
                 placeholder="e.g., Work, Personal, Fitness"
-                className="bg-[#0a0a0a] border-[#2a2a2a] text-foreground placeholder:text-muted-foreground"
+                className="bg-background dark:bg-[#0a0a0a] border-border dark:border-[#2a2a2a] text-foreground placeholder:text-muted-foreground text-sm h-10"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-[12px] font-medium text-foreground">Color</label>
+              <label className="text-sm font-semibold text-foreground">Color</label>
               <ColorPicker selectedColor={newCalendarColor} onSelect={setNewCalendarColor} />
             </div>
           </div>
@@ -387,14 +387,14 @@ export function CalendarsSidebar({ open, onOpenChange }: CalendarsSidebarProps) 
             <Button
               variant="ghost"
               onClick={() => setNewCalendarDialogOpen(false)}
-              className="text-muted-foreground hover:text-foreground hover:bg-[#1f1f1f]"
+              className="text-muted-foreground hover:text-foreground hover:bg-secondary dark:hover:bg-[#1f1f1f] font-semibold"
             >
               Cancel
             </Button>
             <Button
               onClick={handleAddCalendar}
               disabled={!newCalendarName.trim()}
-              className="bg-[#3b82f6] text-white hover:bg-[#2563eb] disabled:opacity-50"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 font-semibold"
             >
               Create Calendar
             </Button>
@@ -404,23 +404,23 @@ export function CalendarsSidebar({ open, onOpenChange }: CalendarsSidebarProps) 
 
       {/* Import Dialog */}
       <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
-        <DialogContent className="sm:max-w-[400px] bg-[#141414] border-[#2a2a2a]">
+        <DialogContent className="sm:max-w-[440px] bg-card dark:bg-[#141414] border-border dark:border-[#2a2a2a]">
           <DialogHeader>
-            <DialogTitle className="text-foreground">Import Calendar</DialogTitle>
-            <DialogDescription className="text-muted-foreground">
+            <DialogTitle className="text-lg font-bold text-foreground">Import Calendar</DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground">
               Import events from an .ics file or external calendar URL.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-5 py-3">
             <div className="space-y-2">
-              <label className="text-[12px] font-medium text-foreground">Calendar URL</label>
+              <label className="text-sm font-semibold text-foreground">Calendar URL</label>
               <Input
                 value={importUrl}
                 onChange={(e) => setImportUrl(e.target.value)}
                 placeholder="https://... or path to .ics file"
-                className="bg-[#0a0a0a] border-[#2a2a2a] text-foreground placeholder:text-muted-foreground"
+                className="bg-background dark:bg-[#0a0a0a] border-border dark:border-[#2a2a2a] text-foreground placeholder:text-muted-foreground text-sm h-10"
               />
-              <p className="text-[10px] text-muted-foreground">
+              <p className="text-xs font-medium text-muted-foreground">
                 Supports .ics files and webcal:// URLs
               </p>
             </div>
@@ -429,14 +429,14 @@ export function CalendarsSidebar({ open, onOpenChange }: CalendarsSidebarProps) 
             <Button
               variant="ghost"
               onClick={() => setImportDialogOpen(false)}
-              className="text-muted-foreground hover:text-foreground hover:bg-[#1f1f1f]"
+              className="text-muted-foreground hover:text-foreground hover:bg-secondary dark:hover:bg-[#1f1f1f] font-semibold"
             >
               Cancel
             </Button>
             <Button
               onClick={handleImport}
               disabled={!importUrl.trim()}
-              className="bg-[#3b82f6] text-white hover:bg-[#2563eb] disabled:opacity-50"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 font-semibold"
             >
               Import
             </Button>
