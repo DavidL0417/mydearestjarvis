@@ -1,12 +1,13 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Sidebar, Moon, Sun, Shield, Check, Menu } from "lucide-react"
+import { Sidebar, Moon, Sun, Shield, Check, Menu, Book } from "lucide-react"
 
 interface DashboardHeaderProps {
   onTogglePanels?: () => void
   onToggleMobileMenu?: () => void
   onToggleTheme?: () => void
+  onOpenCalendars?: () => void
   panelsHidden?: boolean
   isDarkMode?: boolean
 }
@@ -15,6 +16,7 @@ export function DashboardHeader({
   onTogglePanels, 
   onToggleMobileMenu, 
   onToggleTheme,
+  onOpenCalendars,
   panelsHidden,
   isDarkMode = true
 }: DashboardHeaderProps) {
@@ -38,6 +40,16 @@ export function DashboardHeader({
           className="hidden md:flex text-muted-foreground hover:text-foreground hover:bg-secondary p-2"
         >
           <Sidebar className="w-5 h-5" />
+        </Button>
+        {/* Book icon for calendars sidebar */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onOpenCalendars}
+          className="text-muted-foreground hover:text-foreground hover:bg-secondary p-2"
+          title="Open Calendars"
+        >
+          <Book className="w-5 h-5" />
         </Button>
         <h1 className="text-xl font-bold text-foreground">Today</h1>
       </div>

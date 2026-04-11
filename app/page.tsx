@@ -8,8 +8,10 @@ import { MasterInput } from "@/components/dashboard/master-input"
 import { WhatToDoNow } from "@/components/dashboard/what-to-do-now"
 import { ScheduleView } from "@/components/dashboard/schedule-view"
 import { StatusPanel } from "@/components/dashboard/status-panel"
+import { CalendarsSidebar, initialCalendars, type Calendar } from "@/components/dashboard/calendars-sidebar"
+import { TaskManager, initialTasks, type Task } from "@/components/dashboard/task-manager"
 import { Button } from "@/components/ui/button"
-import { X } from "lucide-react"
+import { X, Book } from "lucide-react"
 
 type MobileSection = "command" | "schedule" | "status"
 
@@ -18,6 +20,22 @@ export default function DashboardPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [mobileSection, setMobileSection] = useState<MobileSection>("schedule")
   const [isDarkMode, setIsDarkMode] = useState(true)
+  
+  // Calendar management state
+  const [calendarsSidebarOpen, setCalendarsSidebarOpen] = useState(false)
+  const [calendars, setCalendars] = useState<Calendar[]>(initialCalendars)
+  const [activeCalendarId, setActiveCalendarId] = useState<string | null>(null)
+  
+  // Task management state
+  const [tasks, setTasks] = useState<Task[]>(initialTasks)
+
+  // Get visible calendar IDs for filtering events
+  const visibleCalendarIds = calendars.filter(cal => cal.isVisible).map(cal => cal.id)
+  
+  // Get the active calendar object
+  const activeCalendar = activeCalendarId 
+    ? calendars.find(cal => cal.id === activeCalendarId) || null 
+    : null
 
   // Toggle dark/light mode
   useEffect(() => {
@@ -37,6 +55,10 @@ export default function DashboardPage() {
     console.log("Syncing with Google Calendar...")
   }
 
+  const handleOpenCalendarsSidebar = () => {
+    setCalendarsSidebarOpen(true)
+  }
+
   return (
     <div className={`h-screen overflow-hidden text-foreground p-3 md:p-4 ${isDarkMode ? "bg-[#0a0a0a]" : "bg-gray-50"}`}>
       <div className="max-w-[1600px] mx-auto h-full flex flex-col">
@@ -45,8 +67,19 @@ export default function DashboardPage() {
           onTogglePanels={() => setPanelsHidden(!panelsHidden)} 
           onToggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)}
           onToggleTheme={handleToggleTheme}
+          onOpenCalendars={handleOpenCalendarsSidebar}
           panelsHidden={panelsHidden}
           isDarkMode={isDarkMode}
+        />
+
+        {/* Calendars Sidebar - Slide-in from left */}
+        <CalendarsSidebar
+          isOpen={calendarsSidebarOpen}
+          onClose={() => setCalendarsSidebarOpen(false)}
+          calendars={calendars}
+          onCalendarsChange={setCalendars}
+          onSelectCalendar={setActiveCalendarId}
+          activeCalendarId={activeCalendarId}
         />
 
         {/* Mobile Navigation Menu */}
@@ -90,9 +123,20 @@ export default function DashboardPage() {
         )}
 
         {/* Page Title - Desktop */}
-        <div className="hidden md:block mb-2">
-          <h2 className="text-xl font-bold text-foreground">Today</h2>
-          <p className="text-xs text-muted-foreground font-medium">Your plan, quick actions, and schedule</p>
+        <div className="hidden md:flex items-center gap-3 mb-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleOpenCalendarsSidebar}
+            className="text-muted-foreground hover:text-foreground hover:bg-secondary h-8 w-8 p-0"
+            title="Open Calendars"
+          >
+            <Book className="w-5 h-5" />
+          </Button>
+          <div>
+            <h2 className="text-xl font-bold text-foreground">Today</h2>
+            <p className="text-xs text-muted-foreground font-medium">Your plan, quick actions, and schedule</p>
+          </div>
         </div>
 
         {/* Hide Panels Toggle - Desktop only */}
@@ -112,6 +156,14 @@ export default function DashboardPage() {
 
         {/* Mobile Section Navigation */}
         <div className="flex md:hidden gap-1 mb-3 bg-secondary/50 rounded-lg p-0.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleOpenCalendarsSidebar}
+            className="text-muted-foreground hover:text-foreground h-7 w-9 p-0"
+          >
+            <Book className="w-4 h-4" />
+          </Button>
           {[
             { id: "command" as const, label: "Command" },
             { id: "schedule" as const, label: "Schedule" },
@@ -145,12 +197,24 @@ export default function DashboardPage() {
           )}
           {mobileSection === "schedule" && (
             <div className="h-full">
-              <ScheduleView onSyncWithGoogle={handleSyncWithGoogle} />
+              <ScheduleView 
+                onSyncWithGoogle={handleSyncWithGoogle}
+                visibleCalendarIds={visibleCalendarIds}
+                calendars={calendars}
+              />
             </div>
           )}
           {mobileSection === "status" && (
             <div>
-              <StatusPanel />
+              {activeCalendar ? (
+                <TaskManager 
+                  calendar={activeCalendar}
+                  tasks={tasks}
+                  onTasksChange={setTasks}
+                />
+              ) : (
+                <StatusPanel />
+              )}
             </div>
           )}
         </div>
@@ -169,13 +233,25 @@ export default function DashboardPage() {
 
           {/* Center Column - Schedule View */}
           <div className={`${panelsHidden ? "col-span-1" : ""} overflow-hidden`}>
-            <ScheduleView onSyncWithGoogle={handleSyncWithGoogle} />
+            <ScheduleView 
+              onSyncWithGoogle={handleSyncWithGoogle}
+              visibleCalendarIds={visibleCalendarIds}
+              calendars={calendars}
+            />
           </div>
 
-          {/* Right Column - Status Panel */}
+          {/* Right Column - Status Panel or Task Manager */}
           {!panelsHidden && (
             <div className="overflow-auto">
-              <StatusPanel />
+              {activeCalendar ? (
+                <TaskManager 
+                  calendar={activeCalendar}
+                  tasks={tasks}
+                  onTasksChange={setTasks}
+                />
+              ) : (
+                <StatusPanel />
+              )}
             </div>
           )}
         </div>
