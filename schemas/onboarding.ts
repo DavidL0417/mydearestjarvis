@@ -16,6 +16,8 @@ export const onboardingTaskInputSchema = z.object({
   durationMinutes: z.number().int().positive().nullable().optional(),
   priority: prioritySchema.optional(),
   status: taskStatusSchema.optional(),
+  isImmutable: z.boolean().optional().default(false),
+  calendarId: z.string().min(1).nullable().optional(),
 })
 
 export const onboardingRequestSchema = z.object({

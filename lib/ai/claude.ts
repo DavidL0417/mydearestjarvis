@@ -22,6 +22,7 @@ export async function generateSchedule(input: SchedulePreparationContext): Promi
   void client
 
   // TODO: Intentionally stubbed for the backend foundation milestone until David wires the planner prompt/output.
+  // Immutable items should be treated as fixed in time once real scheduling logic is added.
   return {
     plannerStatus: "stubbed",
     proposedEvents: [],

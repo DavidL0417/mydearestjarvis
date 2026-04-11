@@ -31,6 +31,8 @@ export const taskSchema = z.object({
   description: z.string().min(1).optional(),
   priority: prioritySchema,
   status: taskStatusSchema,
+  isImmutable: z.boolean().default(false),
+  calendarId: z.string().min(1).nullable().optional(),
   dueAt: z.string().datetime().nullable().optional(),
   scheduledFor: z.string().datetime().nullable().optional(),
   estimateMinutes: z.number().int().positive().nullable().optional(),
@@ -43,6 +45,8 @@ export const scheduleEventSchema = z.object({
   start: z.string().datetime(),
   end: z.string().datetime(),
   source: z.enum(["task", "calendar", "focus"]),
+  isImmutable: z.boolean().default(false),
+  calendarId: z.string().min(1).nullable().optional(),
   status: taskStatusSchema.optional(),
   location: z.string().min(1).nullable().optional(),
 })
