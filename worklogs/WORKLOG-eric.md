@@ -2,6 +2,12 @@
 
 ## Log
 
+### 2026-04-11 17:28 CDT
+
+- Added `is_immutable` and `calendar_id` across the backend scheduling data model for both tasks and schedule events, including SQL schema, shared TS/Zod contracts, DB row mappers, and route read/write points.
+- Status: onboarding now persists the new task fields, dashboard/schedule reads now return them, and the scheduler stub preserves them in typed planner context without requiring frontend changes.
+- Next step: when David wires real planner logic, make it actively respect `is_immutable` for move/protect decisions and use `calendar_id` when calendar sync is implemented.
+
 ### 2026-04-11 16:17 CDT
 
 - Completed the merge-readiness cleanup pass: removed generated build noise from the diff, confirmed `.env.local` stays gitignored, and added README setup notes for env copying plus Supabase schema application.

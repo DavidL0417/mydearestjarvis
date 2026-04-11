@@ -45,12 +45,12 @@ export async function GET() {
     const [tasksResult, eventsResult, checkinsResult] = await Promise.all([
       supabase
         .from("tasks")
-        .select("id, title, description, deadline, duration_minutes, priority, status, scheduled_for")
+        .select("id, title, description, deadline, duration_minutes, priority, status, is_immutable, calendar_id, scheduled_for")
         .eq("user_id", user.id)
         .order("created_at", { ascending: true }),
       supabase
         .from("schedule_events")
-        .select("id, title, starts_at, ends_at, source, status, location, task_id")
+        .select("id, title, starts_at, ends_at, source, status, is_immutable, calendar_id, location, task_id")
         .eq("user_id", user.id)
         .order("starts_at", { ascending: true }),
       supabase.from("checkins").select("id").eq("user_id", user.id).limit(4),

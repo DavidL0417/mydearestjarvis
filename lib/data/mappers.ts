@@ -17,6 +17,8 @@ interface TaskRow {
   duration_minutes: number | null
   priority: string | null
   status: string | null
+  is_immutable: boolean | null
+  calendar_id: string | null
   scheduled_for: string | null
 }
 
@@ -27,6 +29,8 @@ interface ScheduleEventRow {
   ends_at: string
   source: string | null
   status: string | null
+  is_immutable: boolean | null
+  calendar_id: string | null
   location: string | null
 }
 
@@ -79,6 +83,8 @@ export function mapTaskRowToTask(row: TaskRow): Task {
     description: row.description || undefined,
     priority: normalizePriority(row.priority),
     status: normalizeTaskStatus(row.status),
+    isImmutable: row.is_immutable ?? false,
+    calendarId: row.calendar_id,
     dueAt: row.deadline,
     scheduledFor: row.scheduled_for,
     estimateMinutes: row.duration_minutes,
@@ -93,6 +99,8 @@ export function mapScheduleEventRowToScheduleEvent(row: ScheduleEventRow): Sched
     start: row.starts_at,
     end: row.ends_at,
     source: normalizeEventSource(row.source),
+    isImmutable: row.is_immutable ?? false,
+    calendarId: row.calendar_id,
     status: row.status ? normalizeTaskStatus(row.status) : undefined,
     location: row.location,
   }

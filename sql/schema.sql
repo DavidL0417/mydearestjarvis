@@ -44,6 +44,8 @@ create table if not exists public.tasks (
   duration_minutes integer check (duration_minutes is null or duration_minutes > 0),
   priority text not null default 'medium' check (priority in ('low', 'medium', 'high')),
   status text not null default 'todo' check (status in ('todo', 'scheduled', 'completed', 'missed')),
+  is_immutable boolean not null default false,
+  calendar_id text,
   scheduled_for timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -60,6 +62,8 @@ create table if not exists public.schedule_events (
   ends_at timestamptz not null,
   source text not null default 'task' check (source in ('task', 'calendar', 'focus')),
   status text check (status in ('todo', 'scheduled', 'completed', 'missed')),
+  is_immutable boolean not null default false,
+  calendar_id text,
   location text,
   external_event_id text,
   created_at timestamptz not null default now(),

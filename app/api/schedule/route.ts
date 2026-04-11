@@ -35,7 +35,7 @@ export async function POST(request: Request) {
 
     let taskQuery = supabase
       .from("tasks")
-      .select("id, title, description, deadline, duration_minutes, priority, status, scheduled_for")
+      .select("id, title, description, deadline, duration_minutes, priority, status, is_immutable, calendar_id, scheduled_for")
       .eq("user_id", user.id)
       .order("created_at", { ascending: true })
 
@@ -78,6 +78,7 @@ export async function POST(request: Request) {
     }
 
     // Future flow: frontend -> /api/schedule -> supabase read -> generateSchedule() -> validate -> DB write.
+    // `isImmutable` and `calendarId` are threaded through the planner context now, but the stub planner only preserves them in-memory.
     const plannerResult = await generateSchedule(parsedContext.data)
     const parsedPlannerResult = schedulePlanResultSchema.safeParse(plannerResult)
 

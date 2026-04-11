@@ -13,6 +13,8 @@ export interface Task {
   description?: string
   priority: Priority
   status: TaskStatus
+  isImmutable: boolean
+  calendarId?: string | null
   dueAt?: string | null
   scheduledFor?: string | null
   estimateMinutes?: number | null
@@ -39,6 +41,8 @@ export interface ScheduleEvent {
   start: string
   end: string
   source: "task" | "calendar" | "focus"
+  isImmutable: boolean
+  calendarId?: string | null
   status?: TaskStatus
   location?: string | null
 }
@@ -78,6 +82,8 @@ export interface OnboardingTaskInput {
   durationMinutes?: number | null
   priority?: Priority
   status?: TaskStatus
+  isImmutable?: boolean
+  calendarId?: string | null
 }
 
 export interface OnboardingResponse {
