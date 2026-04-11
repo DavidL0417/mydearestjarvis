@@ -19,11 +19,11 @@ export function PanelTabs() {
   const tabs = mockTabs
 
   return (
-    <Card className="bg-[#141414] border-[#2a2a2a]">
+    <Card className="bg-card border-border">
       <CardHeader className="p-3 pb-1">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-xs font-medium text-foreground">Panel</CardTitle>
-          <span className="text-[10px] text-muted-foreground capitalize">{activeTab}</span>
+          <CardTitle className="text-sm font-bold text-foreground">Panel</CardTitle>
+          <span className="text-xs text-muted-foreground capitalize font-semibold">{activeTab}</span>
         </div>
       </CardHeader>
       <CardContent className="p-3 pt-2 space-y-2">
@@ -36,15 +36,15 @@ export function PanelTabs() {
               onClick={() => setActiveTab(tab.id)}
               className={
                 activeTab === tab.id
-                  ? "bg-[#3b82f6] hover:bg-[#2563eb] text-white text-[10px] h-6 px-2"
-                  : "text-muted-foreground hover:text-foreground hover:bg-[#1f1f1f] text-[10px] h-6 px-2"
+                  ? "bg-[#3b82f6] hover:bg-[#2563eb] text-white text-xs h-7 px-2.5 font-semibold"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary text-xs h-7 px-2.5 font-semibold"
               }
             >
               {tab.label}
             </Button>
           ))}
         </div>
-        <p className="text-[10px] text-muted-foreground leading-tight">
+        <p className="text-xs text-muted-foreground leading-tight font-medium">
           Master input, now-task guidance, and quick actions.
         </p>
       </CardContent>

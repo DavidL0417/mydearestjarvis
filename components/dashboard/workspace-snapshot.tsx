@@ -24,8 +24,8 @@ interface WorkspaceSnapshotProps {
 function StatItem({ label, value }: StatItemProps) {
   return (
     <div className="space-y-0.5">
-      <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{label}</p>
-      <p className="text-lg font-semibold text-foreground">{value}</p>
+      <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-semibold">{label}</p>
+      <p className="text-base font-bold text-foreground">{value}</p>
     </div>
   )
 }
@@ -45,10 +45,10 @@ export function WorkspaceSnapshot({ stats }: WorkspaceSnapshotProps) {
     : mockWorkspaceStats
 
   return (
-    <Card className="bg-[#141414] border-[#2a2a2a]">
+    <Card className="bg-card border-border">
       <CardHeader className="p-3 pb-1">
-        <CardTitle className="text-xs font-medium text-foreground">Workspace Snapshot</CardTitle>
-        <CardDescription className="text-[10px] text-muted-foreground leading-tight">
+        <CardTitle className="text-sm font-bold text-foreground">Workspace Snapshot</CardTitle>
+        <CardDescription className="text-xs text-muted-foreground leading-tight font-medium">
           Key counts at a glance. Open a panel below to work on one area at a time.
         </CardDescription>
       </CardHeader>

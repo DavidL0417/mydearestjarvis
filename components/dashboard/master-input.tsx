@@ -18,16 +18,16 @@ export function MasterInput() {
   }
 
   return (
-    <Card className="bg-[#141414] border-[#2a2a2a] flex-1">
+    <Card className="bg-card border-border flex-1">
       <CardHeader className="p-3 pb-1">
-        <CardTitle className="text-xs font-medium text-foreground">Master Input</CardTitle>
-        <CardDescription className="text-[10px] text-muted-foreground leading-tight">
+        <CardTitle className="text-sm font-bold text-foreground">Master Input</CardTitle>
+        <CardDescription className="text-xs text-muted-foreground leading-tight font-medium">
           Ask in plain language. I can edit tasks, replan, and save/remove assistant memory.
         </CardDescription>
       </CardHeader>
       <CardContent className="p-3 pt-2 flex flex-col">
-        <div className="bg-[#1a1a1a] rounded-md p-2 mb-2 min-h-[80px]">
-          <p className="text-[11px] text-muted-foreground leading-relaxed">
+        <div className="bg-secondary/50 rounded-md p-2 mb-2 min-h-[70px]">
+          <p className="text-xs text-muted-foreground leading-relaxed font-medium">
             Tell me what changed and I&apos;ll update the plan. I can schedule, replan, edit tasks, and remember long-term preferences.
           </p>
         </div>
@@ -36,11 +36,11 @@ export function MasterInput() {
             placeholder="Type a request..."
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            className="flex-1 bg-[#1a1a1a] border-[#2a2a2a] text-foreground placeholder:text-muted-foreground resize-none min-h-[32px] h-8 text-xs py-2"
+            className="flex-1 bg-secondary/50 border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[32px] h-8 text-xs py-2"
           />
           <Button 
             onClick={handleSubmit}
-            className="bg-[#3b82f6] hover:bg-[#2563eb] text-white px-4 h-8 text-xs"
+            className="bg-[#3b82f6] hover:bg-[#2563eb] text-white px-4 h-8 text-xs font-semibold"
           >
             Send
           </Button>

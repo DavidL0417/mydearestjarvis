@@ -26,8 +26,8 @@ interface StatusPanelProps {
 function StatusItem({ label, value }: StatusItemProps) {
   return (
     <div className="space-y-0.5">
-      <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{label}</p>
-      <p className="text-sm font-semibold text-foreground">{value}</p>
+      <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-semibold">{label}</p>
+      <p className="text-sm font-bold text-foreground">{value}</p>
     </div>
   )
 }
@@ -55,9 +55,9 @@ export function StatusPanel({ stats }: StatusPanelProps) {
   return (
     <div className="space-y-3">
       {/* Status Grid */}
-      <Card className="bg-[#141414] border-[#2a2a2a]">
+      <Card className="bg-card border-border">
         <CardHeader className="p-3 pb-1">
-          <CardTitle className="text-xs font-medium text-foreground">Status</CardTitle>
+          <CardTitle className="text-sm font-bold text-foreground">Status</CardTitle>
         </CardHeader>
         <CardContent className="p-3 pt-2">
           <div className="grid grid-cols-2 gap-3">
@@ -69,32 +69,32 @@ export function StatusPanel({ stats }: StatusPanelProps) {
       </Card>
 
       {/* Check-ins */}
-      <Card className="bg-[#141414] border-[#2a2a2a]">
+      <Card className="bg-card border-border">
         <CardHeader className="p-3 pb-1">
-          <CardTitle className="text-xs font-medium text-foreground">Check-ins</CardTitle>
+          <CardTitle className="text-sm font-bold text-foreground">Check-ins</CardTitle>
         </CardHeader>
         <CardContent className="p-3 pt-2">
-          <p className="text-[11px] text-muted-foreground">{status.checkInsMessage}</p>
+          <p className="text-xs text-muted-foreground font-medium">{status.checkInsMessage}</p>
         </CardContent>
       </Card>
 
       {/* Overdue */}
-      <Card className="bg-[#141414] border-[#2a2a2a]">
+      <Card className="bg-card border-border">
         <CardHeader className="p-3 pb-1">
-          <CardTitle className="text-xs font-medium text-foreground">Overdue</CardTitle>
+          <CardTitle className="text-sm font-bold text-foreground">Overdue</CardTitle>
         </CardHeader>
         <CardContent className="p-3 pt-2">
-          <p className="text-[11px] text-muted-foreground">{status.overdueMessage}</p>
+          <p className="text-xs text-muted-foreground font-medium">{status.overdueMessage}</p>
         </CardContent>
       </Card>
 
       {/* Missing explicit estimates */}
-      <Card className="bg-[#141414] border-[#2a2a2a]">
+      <Card className="bg-card border-border">
         <CardHeader className="p-3 pb-1">
-          <CardTitle className="text-xs font-medium text-foreground">Missing explicit estimates</CardTitle>
+          <CardTitle className="text-sm font-bold text-foreground">Missing explicit estimates</CardTitle>
         </CardHeader>
         <CardContent className="p-3 pt-2">
-          <p className="text-[11px] text-muted-foreground">{status.estimatesMessage}</p>
+          <p className="text-xs text-muted-foreground font-medium">{status.estimatesMessage}</p>
         </CardContent>
       </Card>
     </div>
