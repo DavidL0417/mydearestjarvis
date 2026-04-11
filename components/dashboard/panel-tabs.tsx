@@ -20,14 +20,14 @@ export function PanelTabs() {
 
   return (
     <Card className="bg-card border-border">
-      <CardHeader className="p-2 pb-1">
+      <CardHeader className="p-3 pb-1">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-[11px] font-medium text-foreground">Panel</CardTitle>
-          <span className="text-[9px] text-muted-foreground capitalize">{activeTab}</span>
+          <CardTitle className="text-sm font-bold text-foreground">Panel</CardTitle>
+          <span className="text-xs text-muted-foreground capitalize font-semibold">{activeTab}</span>
         </div>
       </CardHeader>
-      <CardContent className="p-2 pt-1 space-y-1">
-        <div className="flex gap-0.5">
+      <CardContent className="p-3 pt-2 space-y-2">
+        <div className="flex gap-1">
           {tabs.map((tab) => (
             <Button
               key={tab.id}
@@ -36,15 +36,15 @@ export function PanelTabs() {
               onClick={() => setActiveTab(tab.id)}
               className={
                 activeTab === tab.id
-                  ? "bg-[#3b82f6] hover:bg-[#2563eb] text-white text-[9px] h-5 px-1.5"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary text-[9px] h-5 px-1.5"
+                  ? "bg-[#3b82f6] hover:bg-[#2563eb] text-white text-xs h-7 px-2.5 font-semibold"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary text-xs h-7 px-2.5 font-semibold"
               }
             >
               {tab.label}
             </Button>
           ))}
         </div>
-        <p className="text-[9px] text-muted-foreground leading-tight">
+        <p className="text-xs text-muted-foreground leading-tight font-medium">
           Master input, now-task guidance, and quick actions.
         </p>
       </CardContent>

@@ -32,8 +32,13 @@ export default function DashboardPage() {
     setIsDarkMode(!isDarkMode)
   }
 
+  // API Hook: Replace with actual Google Calendar sync
+  const handleSyncWithGoogle = () => {
+    console.log("Syncing with Google Calendar...")
+  }
+
   return (
-    <div className={`h-screen overflow-hidden text-foreground p-2 md:p-3 ${isDarkMode ? "bg-[#0a0a0a]" : "bg-gray-50"}`}>
+    <div className={`h-screen overflow-hidden text-foreground p-3 md:p-4 ${isDarkMode ? "bg-[#0a0a0a]" : "bg-gray-50"}`}>
       <div className="max-w-[1600px] mx-auto h-full flex flex-col">
         {/* Header */}
         <DashboardHeader 
@@ -48,14 +53,14 @@ export default function DashboardPage() {
         {mobileMenuOpen && (
           <div className={`fixed inset-0 z-50 ${isDarkMode ? "bg-[#0a0a0a]" : "bg-gray-50"} md:hidden`}>
             <div className="flex items-center justify-between p-4 border-b border-border">
-              <h2 className="text-sm font-medium text-foreground">Navigation</h2>
+              <h2 className="text-base font-bold text-foreground">Navigation</h2>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setMobileMenuOpen(false)}
                 className="text-muted-foreground hover:text-foreground p-2"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </Button>
             </div>
             <div className="p-4 space-y-2">
@@ -67,7 +72,7 @@ export default function DashboardPage() {
                 <Button
                   key={section.id}
                   variant={mobileSection === section.id ? "default" : "ghost"}
-                  className={`w-full justify-start ${
+                  className={`w-full justify-start text-sm font-semibold ${
                     mobileSection === section.id
                       ? "bg-[#3b82f6] text-white"
                       : "text-muted-foreground hover:text-foreground hover:bg-secondary"
@@ -85,28 +90,28 @@ export default function DashboardPage() {
         )}
 
         {/* Page Title - Desktop */}
-        <div className="hidden md:block mb-1">
-          <h2 className="text-lg font-bold text-foreground">Today</h2>
-          <p className="text-[10px] text-muted-foreground">Your plan, quick actions, and schedule</p>
+        <div className="hidden md:block mb-2">
+          <h2 className="text-xl font-bold text-foreground">Today</h2>
+          <p className="text-xs text-muted-foreground font-medium">Your plan, quick actions, and schedule</p>
         </div>
 
         {/* Hide Panels Toggle - Desktop only */}
-        <div className="hidden md:flex mb-2 items-center gap-2">
+        <div className="hidden md:flex mb-3 items-center gap-3">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setPanelsHidden(!panelsHidden)}
-            className="text-muted-foreground hover:text-foreground hover:bg-secondary text-[10px] h-6"
+            className="text-muted-foreground hover:text-foreground hover:bg-secondary text-xs h-7 font-semibold"
           >
             {panelsHidden ? "Show Panels" : "Hide Panels"}
           </Button>
-          <span className="text-[9px] text-muted-foreground">
+          <span className="text-xs text-muted-foreground font-medium">
             Focus panel open. Hide panels for a full-screen calendar view.
           </span>
         </div>
 
         {/* Mobile Section Navigation */}
-        <div className="flex md:hidden gap-1 mb-2 bg-secondary/50 rounded-lg p-0.5">
+        <div className="flex md:hidden gap-1 mb-3 bg-secondary/50 rounded-lg p-0.5">
           {[
             { id: "command" as const, label: "Command" },
             { id: "schedule" as const, label: "Schedule" },
@@ -119,8 +124,8 @@ export default function DashboardPage() {
               onClick={() => setMobileSection(section.id)}
               className={`flex-1 ${
                 mobileSection === section.id
-                  ? "bg-[#3b82f6] text-white text-[10px] h-6"
-                  : "text-muted-foreground hover:text-foreground text-[10px] h-6"
+                  ? "bg-[#3b82f6] text-white text-xs h-7 font-semibold"
+                  : "text-muted-foreground hover:text-foreground text-xs h-7 font-semibold"
               }`}
             >
               {section.label}
@@ -131,7 +136,7 @@ export default function DashboardPage() {
         {/* Mobile Content */}
         <div className="md:hidden flex-1 overflow-auto">
           {mobileSection === "command" && (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-3">
               <WorkspaceSnapshot />
               <PanelTabs />
               <MasterInput />
@@ -140,7 +145,7 @@ export default function DashboardPage() {
           )}
           {mobileSection === "schedule" && (
             <div className="h-full">
-              <ScheduleView />
+              <ScheduleView onSyncWithGoogle={handleSyncWithGoogle} />
             </div>
           )}
           {mobileSection === "status" && (
@@ -151,10 +156,10 @@ export default function DashboardPage() {
         </div>
 
         {/* Desktop Main Content Grid - iCal compact style, fit to screen */}
-        <div className={`hidden md:grid gap-2 flex-1 overflow-hidden ${panelsHidden ? "grid-cols-1" : "grid-cols-[260px_1fr_200px]"}`}>
+        <div className={`hidden md:grid gap-3 flex-1 overflow-hidden ${panelsHidden ? "grid-cols-1" : "grid-cols-[280px_1fr_220px]"}`}>
           {/* Left Column - Command Center */}
           {!panelsHidden && (
-            <div className="flex flex-col gap-2 overflow-auto">
+            <div className="flex flex-col gap-3 overflow-auto">
               <WorkspaceSnapshot />
               <PanelTabs />
               <MasterInput />
@@ -164,7 +169,7 @@ export default function DashboardPage() {
 
           {/* Center Column - Schedule View */}
           <div className={`${panelsHidden ? "col-span-1" : ""} overflow-hidden`}>
-            <ScheduleView />
+            <ScheduleView onSyncWithGoogle={handleSyncWithGoogle} />
           </div>
 
           {/* Right Column - Status Panel */}
