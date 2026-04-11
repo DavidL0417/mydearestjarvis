@@ -146,18 +146,13 @@ export function ScheduleView({ onSyncWithGoogle, visibleCalendarIds, calendars }
     console.log("Replanning now")
   }
 
-  // Handle clicking a date in month view
-  const handleDateClick = (date: Date) => {
-    setSelectedDate(date)
-    setViewMode("1day")
-  }
-
   const getEventStyle = (event: CalendarEvent) => {
-    const top = event.startHour * 24 // 24px per hour for compact 24h view
-    const height = event.duration * 24
+    const pixelsPerHour = 48
+    const top = event.startHour * pixelsPerHour
+    const height = event.duration * pixelsPerHour
     return {
       top: `${top}px`,
-      height: `${Math.max(height, 18)}px`,
+      height: `${Math.max(height, 20)}px`,
     }
   }
 
@@ -205,6 +200,14 @@ export function ScheduleView({ onSyncWithGoogle, visibleCalendarIds, calendars }
     setSelectedDate(newDate)
   }
 
+  const navigatePrevious = () => {
+    handlePrevPeriod()
+  }
+
+  const handleResetReplan = () => {
+    setSelectedDate(new Date(2026, 3, 11))
+  }
+
   // Month view helpers
   const getDaysInMonth = (date: Date) => {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
@@ -232,6 +235,27 @@ export function ScheduleView({ onSyncWithGoogle, visibleCalendarIds, calendars }
                       "July", "August", "September", "October", "November", "December"]
   
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+  const isToday = (date: Date) =>
+    date.getDate() === 11 && date.getMonth() === 3 && date.getFullYear() === 2026
+
+  const displayDates = useMemo(() => {
+    const startDate = new Date(selectedDate)
+
+    if (viewMode === "7days") {
+      const dayOfWeek = startDate.getDay()
+      const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+      startDate.setDate(startDate.getDate() + mondayOffset)
+    }
+
+    const count = viewMode === "1day" ? 1 : viewMode === "3days" ? 3 : 7
+
+    return Array.from({ length: count }, (_, index) => {
+      const date = new Date(startDate)
+      date.setDate(startDate.getDate() + index)
+      return date
+    })
+  }, [selectedDate, viewMode])
 
   // Get day names for the current view
   const getDayHeaders = () => {
@@ -366,7 +390,7 @@ export function ScheduleView({ onSyncWithGoogle, visibleCalendarIds, calendars }
                 tabMode === "calendars"
                   ? "bg-secondary text-foreground text-xs h-7 px-3 font-semibold"
                   : "text-muted-foreground hover:text-foreground hover:bg-secondary text-xs h-7 px-3 font-semibold"
-              }
+              }`}
             >
               Calendars
             </Button>
@@ -378,7 +402,7 @@ export function ScheduleView({ onSyncWithGoogle, visibleCalendarIds, calendars }
                 tabMode === "schedule"
                   ? "bg-[#3b82f6] text-white text-xs h-7 px-3 font-semibold"
                   : "text-muted-foreground hover:text-foreground hover:bg-secondary text-xs h-7 px-3 font-semibold"
-              }
+              }`}
             >
               Schedule
             </Button>
@@ -500,102 +524,6 @@ export function ScheduleView({ onSyncWithGoogle, visibleCalendarIds, calendars }
             </p>
           </div>
         ) : (
-          /* Calendar Grid - Day/Week View */
-          <div className="flex-1 flex flex-col overflow-hidden">
-            {/* Date Header with Navigation */}
-            <div className="flex items-center justify-between mb-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handlePrevPeriod}
-                className="text-muted-foreground hover:text-foreground h-8 w-8 p-0"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </Button>
-              <span className="text-sm font-bold text-foreground">
-                {formatDateRange()}
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleNextPeriod}
-                className="text-muted-foreground hover:text-foreground h-8 w-8 p-0"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </Button>
-            </div>
-
-            {/* Day column headers */}
-            <div 
-              className={`grid gap-px mb-1 ${
-                viewMode === "1day" 
-                  ? "grid-cols-[40px_1fr]" 
-                  : viewMode === "3days" 
-                  ? "grid-cols-[40px_repeat(3,1fr)]" 
-                  : "grid-cols-[40px_repeat(7,1fr)]"
-              }`}
-            >
-              <div /> {/* Empty corner for time column */}
-              {getDayHeaders().map((day, idx) => (
-                <div key={idx} className="text-center py-1">
-                  <div className="text-xs text-muted-foreground font-semibold">{day.name}</div>
-                  <div className={`text-sm font-bold ${
-                    day.isToday 
-                      ? "bg-[#3b82f6] text-white w-7 h-7 rounded-full flex items-center justify-center mx-auto" 
-                      : "text-foreground"
-                  }`}>
-                    {day.date}
-                  </div>
-                </div>
-              ))}
-            </div>
-            {/* Date grid */}
-            <div className="grid grid-cols-7 gap-px bg-border/50">
-              {getMonthGrid().map((date, i) => (
-                <div
-                  key={i}
-                  className={`min-h-[100px] p-2 bg-card dark:bg-[#1a1a1a] ${
-                    date ? "cursor-pointer hover:bg-secondary/50 dark:hover:bg-[#252525] transition-colors" : ""
-                  }`}
-                  onClick={() => date && handleDateClick(date)}
-                >
-                  {date && (
-                    <>
-                      <div className={`flex items-center justify-center w-8 h-8 mb-1 rounded-full text-sm font-semibold ${
-                        isToday(date)
-                          ? "bg-primary text-primary-foreground"
-                          : "text-foreground"
-                      }`}>
-                        {date.getDate()}
-                      </div>
-                      {/* Event indicators */}
-                      <div className="space-y-1">
-                        {getEventsForDate(date).slice(0, 3).map((event) => (
-                          <div
-                            key={event.id}
-                            className="flex items-center gap-1 text-xs truncate"
-                            style={{ color: getEventColor(event) }}
-                          >
-                            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: getEventColor(event) }} />
-                            <span className="truncate font-medium">{event.title}</span>
-                            {event.source === "google" && (
-                              <GoogleIcon className="w-3 h-3 flex-shrink-0" />
-                            )}
-                          </div>
-                        ))}
-                        {getEventsForDate(date).length > 3 && (
-                          <div className="text-xs text-muted-foreground font-semibold">
-                            +{getEventsForDate(date).length - 3} more
-                          </div>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : (
           /* Calendar Grid - Day Views (1, 3, 7 days) */
           <div className="flex-1 overflow-auto relative">
             {/* Day Headers */}
@@ -651,67 +579,49 @@ export function ScheduleView({ onSyncWithGoogle, visibleCalendarIds, calendars }
                 ))}
               </div>
 
-            {/* Scrollable time grid */}
-            <div className="flex-1 overflow-auto">
-              <div 
-                className={`grid gap-px ${
-                  viewMode === "1day" 
-                    ? "grid-cols-[40px_1fr]" 
-                    : viewMode === "3days" 
-                    ? "grid-cols-[40px_repeat(3,1fr)]" 
-                    : "grid-cols-[40px_repeat(7,1fr)]"
-                }`}
-                style={{ minHeight: `${24 * 24}px` }} // 24 hours * 24px each
-              >
-                {/* Time column */}
-                <div className="flex flex-col">
-                  {timeSlots.map((time) => (
-                    <div key={time} className="h-[24px] text-[10px] text-muted-foreground pr-1 text-right flex items-start font-medium">
-                      {time}
-                    </div>
+              {/* Day columns */}
+              {Array.from({ length: viewMode === "1day" ? 1 : viewMode === "3days" ? 3 : 7 }).map((_, dayIndex) => (
+                <div
+                  key={dayIndex}
+                  className="relative bg-secondary/30 border-l border-border flex-1"
+                  style={{ height: `${24 * 48}px` }}
+                >
+                  {/* Hour lines */}
+                  {timeSlots.map((_, i) => (
+                    <div
+                      key={i}
+                      className="absolute w-full border-t border-border/50"
+                      style={{ top: `${i * 48}px` }}
+                    />
                   ))}
-                </div>
 
-                {/* Day columns */}
-                {Array.from({ length: viewMode === "1day" ? 1 : viewMode === "3days" ? 3 : 7 }).map((_, dayIndex) => (
-                  <div key={dayIndex} className="relative bg-secondary/30 border-l border-border flex-1">
-                    {/* Hour lines */}
-                    {timeSlots.map((_, i) => (
+                  {/* Events */}
+                  {events
+                    .filter((event) => event.day === dayIndex)
+                    .map((event) => (
                       <div
-                        key={i}
-                        className="absolute w-full border-t border-border/50"
-                        style={{ top: `${i * 24}px` }}
-                      />
+                        key={event.id}
+                        className={`absolute left-0.5 right-0.5 rounded px-1 py-0.5 overflow-hidden ${
+                          calendars ? "" : colorClasses[event.color]
+                        } ${event.isReadOnly ? "opacity-90" : ""}`}
+                        style={{
+                          ...getEventStyle(event),
+                          ...(calendars ? getEventColorStyle(event) : {}),
+                        }}
+                      >
+                        {/* Google icon for synced events */}
+                        {event.source === "google" && <GoogleIcon />}
+                        <p className="text-[9px] font-semibold truncate leading-tight pr-3">{event.title}</p>
+                        {event.location && event.duration >= 0.75 && (
+                          <div className="flex items-center gap-0.5">
+                            <MapPin className="w-2 h-2 flex-shrink-0" />
+                            <p className="text-[8px] truncate opacity-80 font-medium">{event.location}</p>
+                          </div>
+                        )}
+                      </div>
                     ))}
-
-                    {/* Events */}
-                    {events
-                      .filter((event) => event.day === dayIndex)
-                      .map((event) => (
-                        <div
-                          key={event.id}
-                          className={`absolute left-0.5 right-0.5 rounded px-1 py-0.5 overflow-hidden ${
-                            calendars ? "" : colorClasses[event.color]
-                          } ${event.isReadOnly ? "opacity-90" : ""}`}
-                          style={{
-                            ...getEventStyle(event),
-                            ...(calendars ? getEventColorStyle(event) : {}),
-                          }}
-                        >
-                          {/* Google icon for synced events */}
-                          {event.source === "google" && <GoogleIcon />}
-                          <p className="text-[9px] font-semibold truncate leading-tight pr-3">{event.title}</p>
-                          {event.location && event.duration >= 0.75 && (
-                            <div className="flex items-center gap-0.5">
-                              <MapPin className="w-2 h-2 flex-shrink-0" />
-                              <p className="text-[8px] truncate opacity-80 font-medium">{event.location}</p>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                  </div>
-                ))}
-              </div>
+                </div>
+              ))}
             </div>
           </div>
         )}

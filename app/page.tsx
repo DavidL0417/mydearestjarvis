@@ -1,10 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Input } from "@/components/ui/input"
-import { useState, useEffect } from "react"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { WorkspaceSnapshot } from "@/components/dashboard/workspace-snapshot"
 import { PanelTabs } from "@/components/dashboard/panel-tabs"
@@ -14,8 +11,6 @@ import { ScheduleView } from "@/components/dashboard/schedule-view"
 import { StatusPanel } from "@/components/dashboard/status-panel"
 import { CalendarsSidebar, initialCalendars, type Calendar } from "@/components/dashboard/calendars-sidebar"
 import { TaskManager, initialTasks, type Task } from "@/components/dashboard/task-manager"
-import { Button } from "@/components/ui/button"
-import { TaskSidebar } from "@/components/dashboard/task-sidebar"
 import { X, Book } from "lucide-react"
 // ##### BACKEND API #####
 // DO NOT MODIFY UNLESS BACKEND OWNER
@@ -38,6 +33,11 @@ export default function DashboardPage() {
   
   // Task management state
   const [tasks, setTasks] = useState<Task[]>(initialTasks)
+
+  // ##### BACKEND API #####
+  // DO NOT MODIFY UNLESS BACKEND OWNER
+  const [dashboardData, setDashboardData] = useState<DashboardResponse | null>(null)
+  // ##### END BACKEND #####
 
   // Get visible calendar IDs for filtering events
   const visibleCalendarIds = calendars.filter(cal => cal.isVisible).map(cal => cal.id)
@@ -68,18 +68,9 @@ export default function DashboardPage() {
   const handleOpenCalendarsSidebar = () => {
     setCalendarsSidebarOpen(true)
   }
-
-  return (
-    <div className={`h-screen overflow-hidden text-foreground p-3 md:p-4 ${isDarkMode ? "bg-[#0a0a0a]" : "bg-gray-50"}`}>
-      <div className="max-w-[1600px] mx-auto h-full flex flex-col">
-  
-  // Calendar sidebar state
-  const { calendarSidebarOpen, setCalendarSidebarOpen } = useCalendarStore()
   
   // ##### BACKEND API #####
   // DO NOT MODIFY UNLESS BACKEND OWNER
-  const [dashboardData, setDashboardData] = useState<DashboardResponse | null>(null)
-
   useEffect(() => {
     let isActive = true
 
@@ -103,8 +94,8 @@ export default function DashboardPage() {
   // ##### END BACKEND #####
 
   return (
-    <div className="min-h-screen bg-background dark:bg-[#0a0a0a] text-foreground p-4 md:p-5">
-      <div className="max-w-[1800px] mx-auto h-[calc(100vh-40px)] flex flex-col">
+    <div className={`h-screen overflow-hidden text-foreground p-3 md:p-4 ${isDarkMode ? "bg-[#0a0a0a]" : "bg-gray-50"}`}>
+      <div className="max-w-[1600px] mx-auto h-full flex flex-col">
         {/* Header */}
         <DashboardHeader 
           onTogglePanels={() => setPanelsHidden(!panelsHidden)} 
@@ -125,12 +116,6 @@ export default function DashboardPage() {
           activeCalendarId={activeCalendarId}
         />
         
-        {/* Calendar Sidebar */}
-        <CalendarsSidebar 
-          open={calendarSidebarOpen} 
-          onOpenChange={setCalendarSidebarOpen} 
-        />
-
         {/* Mobile Navigation Menu */}
         {mobileMenuOpen && (
           <div className={`fixed inset-0 z-50 ${isDarkMode ? "bg-[#0a0a0a]" : "bg-gray-50"} md:hidden`}>
@@ -245,7 +230,7 @@ export default function DashboardPage() {
                   onTasksChange={setTasks}
                 />
               ) : (
-                <StatusPanel />
+                <StatusPanel stats={dashboardData?.stats} />
               )}
             </div>
           )}
@@ -256,7 +241,7 @@ export default function DashboardPage() {
           {/* Left Column - Command Center */}
           {!panelsHidden && (
             <div className="flex flex-col gap-3 overflow-auto">
-              <WorkspaceSnapshot />
+              <WorkspaceSnapshot stats={dashboardData?.stats} />
               <PanelTabs />
               <MasterInput />
               <WhatToDoNow currentTask={dashboardData?.currentTask} />
@@ -282,7 +267,7 @@ export default function DashboardPage() {
                   onTasksChange={setTasks}
                 />
               ) : (
-                <StatusPanel />
+                <StatusPanel stats={dashboardData?.stats} />
               )}
             </div>
           )}
