@@ -73,12 +73,14 @@ export async function POST(request: Request) {
         ? parsedBody.data.tasks
         : parsedBody.data.goals.map((goal) => ({
             title: goal,
-            description: undefined,
-            deadline: null,
-            durationMinutes: null,
-            priority: "medium" as const,
-            status: "todo" as const,
-          }))
+          description: undefined,
+          deadline: null,
+          durationMinutes: null,
+          isImmutable: false,
+          calendarId: null,
+          priority: "medium" as const,
+          status: "todo" as const,
+        }))
 
     let taskIds: string[] = []
 
@@ -94,6 +96,8 @@ export async function POST(request: Request) {
             duration_minutes: task.durationMinutes || mergedPreferences.defaultTaskDurationMinutes,
             priority: task.priority || "medium",
             status: task.status || "todo",
+            is_immutable: task.isImmutable ?? false,
+            calendar_id: task.calendarId || null,
           })),
         )
         .select("id")
