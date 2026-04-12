@@ -2,6 +2,78 @@
 
 These instructions apply to the entire repository unless a deeper `AGENTS.md` adds narrower rules.
 
+## AI / Claude Role (David)
+
+### Scope
+
+You are responsible for **scheduling logic only**.
+Work ONLY in:
+
+lib/ai/claude.ts
+
+Do NOT modify
+You must NOT modify:
+app/api/**
+lib/supabase/**
+lib/data/**
+schemas/**
+types/**
+components/**
+Do not touch database logic
+Do not touch API routes
+Do not change UI
+Do not rename fields in shared types
+
+Your Responsibilities
+Implement these functions:
+generateSchedule(input)
+replanSchedule(input)
+These functions should:
+call Claude
+generate schedules
+handle reasoning / planning logic
+
+Input / Output Contracts
+You MUST use shared types from:
+types/index.ts
+schemas/schedule.ts
+schemas/replan.ts
+
+Critical Rule
+Your functions MUST return structured JSON that EXACTLY matches the schema.
+Example:
+{
+ "events": [
+   {
+     "taskId": "string",
+     "startTime": "ISO string",
+     "endTime": "ISO string"
+   }
+ ],
+ "explanation": "optional reasoning"
+}
+
+Forbidden
+No free-form text output
+No changing field names
+No adding random fields
+No direct database access
+No direct API calls outside claude.ts
+
+Integration Model
+Your functions will be used like this:
+Frontend → /api/schedule → Backend → Claude (you) → Backend → DB → Frontend
+You are ONLY responsible for the Claude step.
+
+If you need changes
+If you want to:
+change output format
+add new fields
+modify structure
+You MUST coordinate with backend owner first.
+
+
+
 ## Always Start Here
 
 - Before making changes, read this file.
