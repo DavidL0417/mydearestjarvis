@@ -8,6 +8,7 @@ import {
   mapScheduleEventRowToScheduleEvent,
   mapTaskRowToTask,
 } from "@/lib/data/mappers"
+import { createPlaceholderCalendarEvents } from "@/lib/mock-calendar-events"
 import { getOrCreateDemoUser } from "@/lib/supabase/demo-user"
 import { createSupabaseAdminClient } from "@/lib/supabase/server"
 import { dashboardResponseSchema } from "@/schemas/dashboard"
@@ -70,7 +71,11 @@ export async function GET() {
     }
 
     const tasks = (tasksResult.data || []).map(mapTaskRowToTask)
-    const events = (eventsResult.data || []).map(mapScheduleEventRowToScheduleEvent)
+    const persistedEvents = (eventsResult.data || []).map(mapScheduleEventRowToScheduleEvent)
+    const placeholderCalendarEvents = createPlaceholderCalendarEvents(user.id)
+    const events = [...placeholderCalendarEvents, ...persistedEvents.filter((event) => event.source !== "calendar")].sort(
+      (left, right) => new Date(left.start).getTime() - new Date(right.start).getTime(),
+    )
     const scheduledTaskIds = new Set(
       (eventsResult.data || [])
         .map((event) => event.task_id)

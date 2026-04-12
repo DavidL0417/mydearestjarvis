@@ -4,10 +4,14 @@ import { useState, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { MapPin, ChevronLeft, ChevronRight, RefreshCw, Loader2 } from "lucide-react"
+import {
+  PLACEHOLDER_MONTH_START_LOCAL,
+  PLACEHOLDER_SELECTED_DATE_LOCAL,
+} from "@/lib/mock-calendar-events"
+import type { ScheduleEvent } from "@/types"
 import type { Calendar } from "./calendars-sidebar"
 
 type ViewMode = "1day" | "3days" | "7days" | "1month"
-type TabMode = "calendars" | "schedule"
 
 // Enhanced Event interface for Google Calendar integration
 export interface CalendarEvent {
@@ -26,56 +30,10 @@ export interface CalendarEvent {
   duration: number
 }
 
-// API Hook: Replace with useCalendarEvents hook
-// Example: const { data: events, isLoading, mutate } = useCalendarEvents()
-// This is the central hook where backend team can replace mock data
-const mockEvents: CalendarEvent[] = [
-  // Personal Calendar (cal-1)
-  { id: "1", calendarId: "cal-1", title: "PAD Meeting", location: "University...", color: "purple", day: 0, startHour: 18, duration: 2.5, start: "2026-04-06T18:00:00", end: "2026-04-06T20:30:00", source: "google", isReadOnly: true },
-  { id: "19", calendarId: "cal-1", title: "Dinner w Evan", color: "cyan", day: 3, startHour: 18, duration: 1, start: "2026-04-09T18:00:00", end: "2026-04-09T19:00:00", source: "local", isReadOnly: false },
-  { id: "25", calendarId: "cal-1", title: "Hotpot", color: "cyan", day: 4, startHour: 18, duration: 3, start: "2026-04-10T18:00:00", end: "2026-04-10T21:00:00", source: "local", isReadOnly: false },
-  
-  // Work Calendar (cal-2)
-  { id: "22", calendarId: "cal-2", title: "Innovation L...", location: "Microsoft T...", color: "orange", day: 4, startHour: 13, duration: 1, start: "2026-04-10T13:00:00", end: "2026-04-10T14:00:00", source: "local", isReadOnly: false },
-
-  // Northwestern Classes (cal-3)
-  { id: "2", calendarId: "cal-3", title: "MATH 240-0", location: "Lunt 105", color: "mint", day: 0, startHour: 10, duration: 1, start: "2026-04-06T10:00:00", end: "2026-04-06T11:00:00", source: "google", isReadOnly: true },
-  { id: "3", calendarId: "cal-3", title: "HISTORY 38...", location: "Locy Hall 111", color: "blue", day: 0, startHour: 11, duration: 1, start: "2026-04-06T11:00:00", end: "2026-04-06T12:00:00", source: "google", isReadOnly: true },
-  { id: "4", calendarId: "cal-3", title: "PHIL 101-8 O...", location: "Crowe 3-178", color: "cyan", day: 0, startHour: 15, duration: 0.5, start: "2026-04-06T15:00:00", end: "2026-04-06T15:30:00", source: "local", isReadOnly: false },
-  { id: "5", calendarId: "cal-3", title: "PHIL 101-8 (seminar)", location: "Shepard Ha...", color: "cyan", day: 0, startHour: 16, duration: 1, start: "2026-04-06T16:00:00", end: "2026-04-06T17:00:00", source: "local", isReadOnly: false },
-  { id: "7", calendarId: "cal-3", title: "MATH 240-0...", location: "Lunt Hall 103", color: "mint", day: 1, startHour: 10, duration: 1, start: "2026-04-07T10:00:00", end: "2026-04-07T11:00:00", source: "google", isReadOnly: true },
-  { id: "8", calendarId: "cal-3", title: "LEGAL_ST 221-0", location: "Harris Hall...", color: "yellow", day: 1, startHour: 13, duration: 1, start: "2026-04-07T13:00:00", end: "2026-04-07T14:00:00", source: "google", isReadOnly: true },
-  { id: "9", calendarId: "cal-3", title: "COMP_SCI 397-0 (semi...", location: "RB135 - Th...", color: "yellow", day: 1, startHour: 14.5, duration: 2.5, start: "2026-04-07T14:30:00", end: "2026-04-07T17:00:00", source: "local", isReadOnly: false },
-  { id: "11", calendarId: "cal-3", title: "HISTORY 38...", location: "Locy Hall 111", color: "blue", day: 2, startHour: 11, duration: 1, start: "2026-04-08T11:00:00", end: "2026-04-08T12:00:00", source: "google", isReadOnly: true },
-  { id: "12", calendarId: "cal-3", title: "PHIL 101-8 O...", location: "Crowe 3-178", color: "cyan", day: 2, startHour: 15, duration: 0.5, start: "2026-04-08T15:00:00", end: "2026-04-08T15:30:00", source: "local", isReadOnly: false },
-  { id: "13", calendarId: "cal-3", title: "PHIL 101-8 (seminar)", location: "Shepard Ha...", color: "cyan", day: 2, startHour: 16, duration: 1, start: "2026-04-08T16:00:00", end: "2026-04-08T17:00:00", source: "local", isReadOnly: false },
-  { id: "16", calendarId: "cal-3", title: "LEGAL_ST 221-0", location: "Harris Hall...", color: "yellow", day: 3, startHour: 13, duration: 1, start: "2026-04-09T13:00:00", end: "2026-04-09T14:00:00", source: "google", isReadOnly: true },
-  { id: "17", calendarId: "cal-3", title: "LEGAL_ST 2...", location: "Kresge Cen...", color: "yellow", day: 3, startHour: 16, duration: 1, start: "2026-04-09T16:00:00", end: "2026-04-09T17:00:00", source: "local", isReadOnly: false },
-  { id: "20", calendarId: "cal-3", title: "MATH 240-0", location: "Lunt 105", color: "mint", day: 4, startHour: 10, duration: 1, start: "2026-04-10T10:00:00", end: "2026-04-10T11:00:00", source: "google", isReadOnly: true },
-  { id: "21", calendarId: "cal-3", title: "HISTORY 38...", location: "Locy Hall 111", color: "blue", day: 4, startHour: 11, duration: 1, start: "2026-04-10T11:00:00", end: "2026-04-10T12:00:00", source: "google", isReadOnly: true },
-  { id: "23", calendarId: "cal-3", title: "HISTORY 38...", location: "Kresge Cen...", color: "blue", day: 4, startHour: 14, duration: 1, start: "2026-04-10T14:00:00", end: "2026-04-10T15:00:00", source: "google", isReadOnly: true },
-
-  // Project Vela (cal-4)
-  { id: "6", calendarId: "cal-4", title: "Project Vela...", color: "orange", day: 0, startHour: 16.5, duration: 0.5, start: "2026-04-06T16:30:00", end: "2026-04-06T17:00:00", source: "local", isReadOnly: false },
-  { id: "10", calendarId: "cal-4", title: "Project Vela...", color: "orange", day: 1, startHour: 16.5, duration: 1.5, start: "2026-04-07T16:30:00", end: "2026-04-07T18:00:00", source: "local", isReadOnly: false },
-  { id: "14", calendarId: "cal-4", title: "Project Vela...", color: "orange", day: 2, startHour: 16.5, duration: 0.5, start: "2026-04-08T16:30:00", end: "2026-04-08T17:00:00", source: "local", isReadOnly: false },
-  { id: "18", calendarId: "cal-4", title: "Project Vela...", color: "orange", day: 3, startHour: 16.5, duration: 0.5, start: "2026-04-09T16:30:00", end: "2026-04-09T17:00:00", source: "local", isReadOnly: false },
-  { id: "24", calendarId: "cal-4", title: "Project Vela...", color: "orange", day: 4, startHour: 16.5, duration: 0.5, start: "2026-04-10T16:30:00", end: "2026-04-10T17:00:00", source: "local", isReadOnly: false },
-
-  // Social Calendar (cal-5)
-  { id: "15", calendarId: "cal-5", title: "Feiyi Recital", location: "Galvin Reci...", color: "cyan", day: 2, startHour: 18, duration: 1, start: "2026-04-08T18:00:00", end: "2026-04-08T19:00:00", source: "google", isReadOnly: true },
-]
-
 // API Hook: Replace mockSyncStatus with fetch call here
 const mockSyncStatus = {
   lastSynced: "Just now",
   isSyncing: false,
-}
-
-// API Hook: Replace mockScheduleStatus with fetch call here
-const mockScheduleStatus = {
-  plannerStatus: "Not scheduled",
-  currentMonth: "April 2026",
 }
 
 const colorClasses: Record<CalendarEvent["color"], string> = {
@@ -93,49 +51,87 @@ const timeSlots = [
   "12PM", "1PM", "2PM", "3PM", "4PM", "5PM", "6PM", "7PM", "8PM", "9PM", "10PM", "11PM"
 ]
 
-// Google "G" icon component for events from Google Calendar
-function GoogleIcon() {
+const fallbackColors: CalendarEvent["color"][] = ["mint", "blue", "yellow", "orange", "purple", "cyan"]
+const DEFAULT_BACKEND_CALENDAR_ID = "calendar-main"
+
+function getFallbackColor(calendarId: string | null) {
+  const key = calendarId || "default"
+  let hash = 0
+
+  for (const char of key) {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0
+  }
+
+  return fallbackColors[hash % fallbackColors.length]
+}
+
+function isSameCalendarDay(left: Date, right: Date) {
   return (
-    <svg className="w-2.5 h-2.5 absolute top-0.5 right-0.5" viewBox="0 0 24 24" fill="none">
-      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-    </svg>
+    left.getFullYear() === right.getFullYear() &&
+    left.getMonth() === right.getMonth() &&
+    left.getDate() === right.getDate()
   )
+}
+
+function mapScheduleEventsToCalendarEvents(
+  scheduleEvents: ScheduleEvent[],
+  displayDates: Date[],
+) {
+  return scheduleEvents.flatMap((event) => {
+    const start = new Date(event.start)
+    const end = new Date(event.end)
+    const day = displayDates.findIndex((date) => isSameCalendarDay(date, start))
+
+    if (day === -1) {
+      return []
+    }
+
+    return [
+      {
+        id: event.id,
+        title: event.title,
+        start: event.start,
+        end: event.end,
+        source: "local" as const,
+        isReadOnly: event.isImmutable,
+        calendarId: event.calendarId || DEFAULT_BACKEND_CALENDAR_ID,
+        location: event.location || undefined,
+        color: getFallbackColor(event.calendarId),
+        day,
+        startHour: start.getHours() + start.getMinutes() / 60,
+        duration: Math.max((end.getTime() - start.getTime()) / 3_600_000, 0.25),
+      },
+    ]
+  })
 }
 
 interface ScheduleViewProps {
   onSyncWithGoogle?: () => void
   visibleCalendarIds?: string[]
   calendars?: Calendar[]
+  events?: ScheduleEvent[]
+  plannerStatus?: string
+  plannerSummary?: string
+  onSchedule?: () => void | Promise<void>
+  isScheduling?: boolean
 }
 
-export function ScheduleView({ onSyncWithGoogle, visibleCalendarIds, calendars }: ScheduleViewProps) {
+export function ScheduleView({
+  onSyncWithGoogle,
+  visibleCalendarIds,
+  calendars,
+  events: scheduleEvents = [],
+  plannerStatus = "Not scheduled",
+  plannerSummary = "",
+  onSchedule,
+  isScheduling = false,
+}: ScheduleViewProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("7days")
-  const [tabMode, setTabMode] = useState<TabMode>("schedule")
-  const [selectedDate, setSelectedDate] = useState<Date>(() => new Date())
-  const [monthViewDate, setMonthViewDate] = useState<Date>(() => {
-    const now = new Date()
-    return new Date(now.getFullYear(), now.getMonth(), 1)
-  })
+  const [selectedDate, setSelectedDate] = useState<Date>(() => new Date(PLACEHOLDER_SELECTED_DATE_LOCAL))
+  const [monthViewDate, setMonthViewDate] = useState<Date>(() => new Date(PLACEHOLDER_MONTH_START_LOCAL))
   const [isSyncing, setIsSyncing] = useState(false)
 
-  // API Hook: Replace with useCalendarEvents()
-  const allEvents = mockEvents
   const syncStatus = mockSyncStatus
-  const scheduleStatus = mockScheduleStatus
-
-  // Filter events based on visible calendars
-  const events = visibleCalendarIds 
-    ? allEvents.filter(event => visibleCalendarIds.includes(event.calendarId))
-    : allEvents
-
-  // Get calendar color for an event
-  const getEventColor = (event: CalendarEvent): string => {
-    const calendar = calendars?.find(cal => cal.id === event.calendarId)
-    return calendar?.color || colorClasses[event.color].split(" ")[0].replace("bg-[", "").replace("]", "")
-  }
 
   const handleSyncWithGoogle = async () => {
     setIsSyncing(true)
@@ -272,6 +268,14 @@ export function ScheduleView({ onSyncWithGoogle, visibleCalendarIds, calendars }
     })
   }, [selectedDate, viewMode])
 
+  const events = useMemo(() => {
+    const mappedEvents = mapScheduleEventsToCalendarEvents(scheduleEvents, displayDates)
+
+    return visibleCalendarIds
+      ? mappedEvents.filter((event) => visibleCalendarIds.includes(event.calendarId))
+      : mappedEvents
+  }, [displayDates, scheduleEvents, visibleCalendarIds])
+
   // Get day names for the current view
   const getDayHeaders = () => {
     const days = []
@@ -368,7 +372,7 @@ export function ScheduleView({ onSyncWithGoogle, visibleCalendarIds, calendars }
             <CardDescription className="text-xs text-muted-foreground font-semibold">
               {viewMode === "1month" 
                 ? `${monthNames[monthViewDate.getMonth()]} ${monthViewDate.getFullYear()}`
-                : scheduleStatus.currentMonth}
+                : formatDateRange()}
             </CardDescription>
           </div>
           <div className="flex items-center gap-3">
@@ -392,39 +396,33 @@ export function ScheduleView({ onSyncWithGoogle, visibleCalendarIds, calendars }
                 Sync with Google
               </Button>
             </div>
-            <span className="text-xs text-muted-foreground font-semibold">Planner: {scheduleStatus.plannerStatus}</span>
+            <span className="text-xs text-muted-foreground font-semibold">Planner: {plannerStatus}</span>
           </div>
         </div>
         <p className="text-[11px] text-muted-foreground leading-tight font-medium">
           Schedule runs only when you click Schedule/Replan. Dragging a block pins it by default.
         </p>
+        {plannerSummary ? (
+          <p className={`text-[11px] leading-tight font-medium mt-1 ${
+            plannerStatus === "Error" ? "text-red-400" : "text-muted-foreground"
+          }`}>
+            {plannerSummary}
+          </p>
+        ) : null}
       </CardHeader>
       <CardContent className="p-3 pt-0 flex-1 flex flex-col overflow-hidden">
         {/* Controls - hidden on mobile, shown on tablet+ */}
         <div className="hidden md:flex items-center justify-between mb-3 flex-wrap gap-2">
           <div className="flex gap-1 flex-wrap">
             <Button
-              variant={tabMode === "calendars" ? "default" : "ghost"}
               size="sm"
-              onClick={() => setTabMode("calendars")}
-              className={`h-8 px-3 text-sm font-semibold ${
-                tabMode === "calendars"
-                  ? "bg-secondary text-foreground text-xs h-7 px-3 font-semibold"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary text-xs h-7 px-3 font-semibold"
-              }`}
+              onClick={() => onSchedule?.()}
+              disabled={isScheduling || !onSchedule}
+              className="bg-[#3b82f6] hover:bg-[#2563eb] text-white text-xs h-7 px-3 font-semibold disabled:opacity-70"
             >
-              Calendars
-            </Button>
-            <Button
-              variant={tabMode === "schedule" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setTabMode("schedule")}
-              className={`h-8 px-3 text-sm font-semibold ${
-                tabMode === "schedule"
-                  ? "bg-[#3b82f6] text-white text-xs h-7 px-3 font-semibold"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary text-xs h-7 px-3 font-semibold"
-              }`}
-            >
+              {isScheduling ? (
+                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+              ) : null}
               Schedule
             </Button>
           </div>
@@ -480,8 +478,20 @@ export function ScheduleView({ onSyncWithGoogle, visibleCalendarIds, calendars }
 
         {/* Mobile Controls */}
         <div className="flex md:hidden items-center justify-between mb-2 gap-2">
-          <span className="text-xs text-muted-foreground font-semibold">Days:</span>
-          <div className="flex gap-0.5 bg-secondary/50 rounded-lg p-0.5">
+          <Button
+            size="sm"
+            onClick={() => onSchedule?.()}
+            disabled={isScheduling || !onSchedule}
+            className="bg-[#3b82f6] hover:bg-[#2563eb] text-white text-[10px] h-6 px-2 font-semibold disabled:opacity-70"
+          >
+            {isScheduling ? (
+              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+            ) : null}
+            Schedule
+          </Button>
+          <div className="flex items-center gap-2 ml-auto">
+            <span className="text-xs text-muted-foreground font-semibold">Days:</span>
+            <div className="flex gap-0.5 bg-secondary/50 rounded-lg p-0.5">
             {(["1day", "3days", "7days", "1month"] as ViewMode[]).map((mode) => (
               <Button
                 key={mode}
@@ -497,6 +507,7 @@ export function ScheduleView({ onSyncWithGoogle, visibleCalendarIds, calendars }
                 {mode === "1day" ? "1D" : mode === "3days" ? "3D" : mode === "7days" ? "7D" : "Mo"}
               </Button>
             ))}
+            </div>
           </div>
         </div>
 
@@ -638,8 +649,6 @@ export function ScheduleView({ onSyncWithGoogle, visibleCalendarIds, calendars }
                           ...(calendars ? getEventColorStyle(event) : {}),
                         }}
                       >
-                        {/* Google icon for synced events */}
-                        {event.source === "google" && <GoogleIcon />}
                         <p className="text-[9px] font-semibold truncate leading-tight pr-3">{event.title}</p>
                         {event.location && event.duration >= 0.75 && (
                           <div className="flex items-center gap-0.5">
@@ -658,6 +667,3 @@ export function ScheduleView({ onSyncWithGoogle, visibleCalendarIds, calendars }
     </Card>
   )
 }
-
-// Export mock events for use elsewhere
-export { mockEvents }

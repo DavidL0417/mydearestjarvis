@@ -2,6 +2,30 @@
 
 ## Log
 
+### 2026-04-11 22:00 CDT
+
+- Replaced the sparse backend calendar feed with the exact original placeholder week by moving the old mock `ScheduleView` events into a shared server/client module at [`lib/mock-calendar-events.ts`](./../lib/mock-calendar-events.ts).
+- Updated [`app/api/dashboard/route.ts`](./../app/api/dashboard/route.ts) to return that full placeholder calendar template as the backend mock calendar source of truth, while still appending any future persisted non-calendar task/focus blocks.
+- Switched [`app/page.tsx`](./../app/page.tsx) to load `ScheduleView` client-only and pinned [`components/dashboard/schedule-view.tsx`](./../components/dashboard/schedule-view.tsx) to the same placeholder week constants so the schedule header/calendar no longer relies on unstable SSR date state.
+- Status: `/api/dashboard` now returns 25 placeholder calendar events covering the full April 6-10 mock week, and `/api/schedule` accepts those events as hard constraints successfully.
+- Next step: if Eric later persists real placeholder calendar rows or Google events into `schedule_events`, decide whether the dashboard route should keep overriding `source: "calendar"` rows or switch to DB-owned calendar data.
+
+### 2026-04-11 21:54 CDT
+
+- Fixed the live schedule/dashboard contract break by normalizing Supabase `timestamptz` values in [`lib/data/mappers.ts`](./../lib/data/mappers.ts) before Zod validation, which removed the `Invalid schedule preparation context` and `Invalid dashboard response payload` failures.
+- Patched the frontend calendar wiring so backend events with a missing `calendarId` fall into a visible `calendar-main` bucket instead of being silently filtered out by the sidebar visibility logic.
+- Verified against the running app routes: `/api/dashboard` now returns real event data again, and `/api/schedule` succeeds for both a single task and the full `taskIds: []` scheduling call.
+- Status: the schedule UI should now load backend placeholder events and the Schedule action should advance into real planner execution instead of failing at context prep.
+- Next step: if we want scheduled blocks to persist across refresh, Eric still needs to write planner output into `schedule_events` rather than keeping it client-overlay-only.
+
+### 2026-04-11 21:38 CDT
+
+- Wired the schedule UI to real backend dashboard events and `/api/schedule` under direct user instruction, even though the repo’s default ownership split normally leaves `app/page.tsx` and `components/**` to Cindy/Eric.
+- Replaced the schedule panel’s dead mock action state with a real scheduling request lifecycle: the existing blue Schedule control now triggers `/api/schedule`, shows loading/error/success status, and overlays returned planned task blocks on top of the backend dashboard calendar feed until refresh.
+- Added a visible `cal-tasks` sidebar calendar plus dynamic frontend fallback calendars for backend event ids so returned planner blocks and backend mock events can render without waiting for Google or DB persistence.
+- Status: the frontend now reflects the backend dashboard calendar feed and immediately shows scheduled task blocks from the planner response in-session.
+- Next step: coordinate with Eric if the planned events should be persisted to `schedule_events`, since refresh still drops the local scheduling overlay by design.
+
 ### 2026-04-11 21:01 CDT
 
 - Implemented the David-owned planner logic in [`lib/ai/claude.ts`](./../lib/ai/claude.ts) around a strict five-day horizon (`today` through `+4` days), structured Claude tool output, and deterministic validation for overlaps, deadlines, and horizon bounds.
