@@ -33,6 +33,7 @@ export const onboardingTaskInputSchema = z.object({
   priority: prioritySchema.optional(),
   status: taskStatusSchema.optional(),
   isImmutable: z.boolean().optional().default(false),
+  allDay: z.boolean().optional().default(false),
   calendarId: z.string().min(1).nullable().optional(),
   tags: z.array(tagSchema).optional().default([]),
 })

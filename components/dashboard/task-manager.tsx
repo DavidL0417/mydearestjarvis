@@ -324,6 +324,7 @@ export function TaskManager({
                 <p className="text-sm font-semibold text-foreground">{task.title}</p>
                 <div className="flex flex-wrap items-center gap-1.5">
                   <Badge variant={getStatusBadgeVariant(task, nowMs)}>{getStatusLabel(task, nowMs)}</Badge>
+                  {task.allDay ? <Badge variant="outline">All day</Badge> : null}
                   <Badge variant="outline">{formatDeadlineLabel(task.deadline)}</Badge>
                   {task.tags.map((tag) => (
                     <Badge key={tag} variant="outline">

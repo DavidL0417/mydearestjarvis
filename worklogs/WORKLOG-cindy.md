@@ -2,6 +2,21 @@
 
 ## Log
 
+### 2026-04-11 23:31 America/Chicago
+
+- Added a visible all-day lane to `components/dashboard/schedule-view.tsx` so DB-backed `allDay` events render above the timed grid instead of disappearing.
+- Added a small `All day` badge in `components/dashboard/task-manager.tsx` and threaded the backend `task.allDay` flag through the page mapper.
+- Follow-up: also wired raw DB tasks into `ScheduleView` so unscheduled tasks can appear in the calendar layer instead of only in the task panel.
+- Status: frontend now surfaces all-day tasks/events without changing the existing dashboard layout.
+- Next step: visually confirm a date-only assistant-created task and event both show the new all-day UI after refresh.
+
+### 2026-04-11 19:08 America/Chicago
+
+- Turned `components/dashboard/master-input.tsx` into a first-pass plain-language input flow with local parsing, async submit simulation, keyboard submit behavior, and inline feedback states.
+- Kept the card layout/style close to the existing design while adding interpretable command labels for task/replan/edit/remember/forget/unknown flows.
+- Status: `pnpm exec tsc --noEmit` passes and the component is ready to be swapped over to a real `/api/assistant/message` call later.
+- Next step: when backend routing is ready, replace the local `submitMessage` simulation and `mockParseMessage` helper with the real API integration.
+
 ### 2026-04-11 19:00 America/Chicago
 
 - Fixed the duplicated/compressed time-grid layout in `components/dashboard/schedule-view.tsx` for 1-day, 3-day, and 7-day views.

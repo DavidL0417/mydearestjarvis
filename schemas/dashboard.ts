@@ -21,8 +21,8 @@ export const dashboardCurrentTaskSchema = z.object({
 export const dashboardResponseSchema = z.object({
   stats: dashboardStatsSchema,
   currentTask: dashboardCurrentTaskSchema.nullable(),
-  events: z.array(scheduleEventSchema),
   tasks: z.array(taskSchema),
+  events: z.array(scheduleEventSchema),
 })
 
 export type DashboardResponseInput = z.infer<typeof dashboardResponseSchema>

@@ -95,6 +95,7 @@ export function mapTaskRowToTask(row: TaskRow): Task {
     status: normalizeTaskStatus(row.status),
     scheduledFor: normalizeDateTime(row.scheduled_for),
     isImmutable: row.is_immutable,
+    allDay: row.all_day,
     calendarId: normalizeNullableText(row.calendar_id),
     tags: normalizeTags(row.tags),
   }
@@ -111,6 +112,7 @@ export function mapTaskToInsert(task: Task): TaskInsertRow {
     status: normalizeTaskStatus(task.status),
     scheduled_for: task.scheduledFor,
     is_immutable: task.isImmutable,
+    all_day: task.allDay,
     calendar_id: normalizeNullableText(task.calendarId),
     tags: normalizeTags(task.tags),
   }
@@ -151,6 +153,10 @@ export function mapTaskToUpdate(task: Partial<Omit<Task, "id" | "userId">>): Tas
     update.is_immutable = task.isImmutable
   }
 
+  if ("allDay" in task && typeof task.allDay === "boolean") {
+    update.all_day = task.allDay
+  }
+
   if ("calendarId" in task) {
     update.calendar_id = normalizeNullableText(task.calendarId)
   }
@@ -177,6 +183,7 @@ export function mapOnboardingTaskInputToTaskInsert(
     status: normalizeTaskStatus(task.status),
     scheduled_for: null,
     is_immutable: task.isImmutable ?? false,
+    all_day: task.allDay ?? false,
     calendar_id: normalizeNullableText(task.calendarId),
     tags: normalizeTags(task.tags),
   }
@@ -233,6 +240,7 @@ export function mapScheduleEventRowToScheduleEvent(row: ScheduleEventRow): Sched
     location: normalizeNullableText(row.location),
     externalEventId: normalizeNullableText(row.external_event_id),
     isImmutable: row.is_immutable,
+    allDay: row.all_day,
     calendarId: normalizeNullableText(row.calendar_id),
   }
 }
@@ -253,6 +261,7 @@ export function mapScheduleEventInputToScheduleEvent(
     location: normalizeNullableText(event.location),
     externalEventId: normalizeNullableText(event.externalEventId),
     isImmutable: event.isImmutable ?? false,
+    allDay: event.allDay ?? false,
     calendarId: normalizeNullableText(event.calendarId),
   }
 }

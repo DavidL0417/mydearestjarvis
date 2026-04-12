@@ -35,12 +35,13 @@ export const taskSchema = z.object({
   userId: z.string().uuid(),
   title: z.string().min(1),
   description: z.string().min(1).nullable(),
-  deadline: z.string().datetime().nullable(),
+  deadline: z.string().datetime({ offset: true }).nullable(),
   durationMinutes: z.number().int().positive().nullable(),
   priority: prioritySchema,
   status: taskStatusSchema,
-  scheduledFor: z.string().datetime().nullable(),
+  scheduledFor: z.string().datetime({ offset: true }).nullable(),
   isImmutable: z.boolean(),
+  allDay: z.boolean(),
   calendarId: z.string().min(1).nullable(),
   tags: z.array(tagSchema),
 })
@@ -50,18 +51,20 @@ export const scheduleEventSchema = z.object({
   userId: z.string().uuid(),
   taskId: z.string().uuid().nullable(),
   title: z.string().min(1),
-  start: z.string().datetime(),
-  end: z.string().datetime(),
+  start: z.string().datetime({ offset: true }),
+  end: z.string().datetime({ offset: true }),
   source: scheduleEventSourceSchema,
   status: taskStatusSchema.nullable(),
   location: z.string().min(1).nullable(),
   externalEventId: z.string().min(1).nullable(),
   isImmutable: z.boolean(),
+  allDay: z.boolean(),
   calendarId: z.string().min(1).nullable(),
 })
 
 export const scheduleEventInputSchema = scheduleEventSchema.omit({ userId: true }).extend({
   userId: z.string().uuid().optional(),
+  allDay: z.boolean().optional().default(false),
 })
 
 // ##### END BACKEND #####

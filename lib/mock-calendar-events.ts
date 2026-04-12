@@ -60,6 +60,7 @@ export function createPlaceholderCalendarEvents(userId: string): ScheduleEvent[]
     location: template.location ?? null,
     externalEventId: null,
     isImmutable: true,
+    allDay: false,
     calendarId: template.calendarId,
   }))
 }
