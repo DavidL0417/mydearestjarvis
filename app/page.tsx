@@ -585,6 +585,12 @@ export default function DashboardPage() {
     }
   }
 
+  const handleToggleTaskComplete = async (task: Task) => {
+    await handleUpdateTask(task.id, {
+      status: task.status === "completed" ? "todo" : "completed",
+    })
+  }
+
   const handleDeleteTask = async (taskId: string) => {
     clearTaskError()
 
@@ -712,6 +718,7 @@ export default function DashboardPage() {
           mode="all"
           calendars={calendars}
           tasks={tasks}
+          scheduleEvents={mergedScheduleEvents}
           errorMessage={taskErrorMessage}
           onClearError={clearTaskError}
           onCreateTask={handleCreateTask}
@@ -753,6 +760,7 @@ export default function DashboardPage() {
               calendar={activeCalendar}
               calendars={calendars}
               tasks={tasks}
+              scheduleEvents={mergedScheduleEvents}
               errorMessage={taskErrorMessage}
               onClearError={clearTaskError}
               onCreateTask={handleCreateTask}
@@ -884,6 +892,7 @@ export default function DashboardPage() {
                 calendars={calendars}
                 events={mergedScheduleEvents}
                 tasks={tasks}
+                onToggleTaskComplete={handleToggleTaskComplete}
                 plannerStatus={plannerStatus}
                 plannerSummary={plannerSummary}
                 onSchedule={handleSchedule}
@@ -930,6 +939,7 @@ export default function DashboardPage() {
                   calendars={calendars}
                   events={mergedScheduleEvents}
                   tasks={tasks}
+                  onToggleTaskComplete={handleToggleTaskComplete}
                   plannerStatus={plannerStatus}
                   plannerSummary={plannerSummary}
                   onSchedule={handleSchedule}

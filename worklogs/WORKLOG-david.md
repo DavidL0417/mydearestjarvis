@@ -2,6 +2,14 @@
 
 ## Log
 
+### 2026-04-12 11:51 CDT
+
+- Updated the secretary/task deletion rules in [`lib/assistant/secretary.ts`](./../lib/assistant/secretary.ts) and [`app/api/tasks/[id]/route.ts`](./../app/api/tasks/[id]/route.ts): scheduled tasks are now unscheduled instead of fully deleted in the assistant flow, and the direct DELETE API rejects scheduled tasks with a clear `unschedule first` error so the invariant holds outside the UI as well.
+- Expanded the JARVIS system prompt in [`lib/assistant/secretary.ts`](./../lib/assistant/secretary.ts) so check/uncheck language explicitly maps to `update_task` with `status: "completed"` or `status: "todo"`.
+- Synced task-update refresh behavior in [`app/page.tsx`](./../app/page.tsx) so task/calendar state reloads after updates, which prevents completed or unscheduled task blocks from lingering on the calendar until a manual refresh.
+- Status: `pnpm exec tsc --noEmit --incremental false` passes after the secretary delete/complete behavior pass.
+- Next step: run one live JARVIS smoke test for `mark X complete`, `mark X incomplete`, and `remove X from the calendar` to confirm the tool routing matches the new UI invariant.
+
 ### 2026-04-12 12:18 CDT
 
 - Updated the scheduler overlap logic in [`lib/ai/claude.ts`](./../lib/ai/claude.ts) so all-day hard events are no longer treated as blocking occupied intervals for timed task placement.

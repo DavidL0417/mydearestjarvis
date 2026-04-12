@@ -17,7 +17,7 @@ import {
   X,
 } from "lucide-react"
 import type { Calendar } from "./calendars-sidebar"
-import type { CreateTaskRequest, Task, UpdateTaskRequest } from "@/types"
+import type { CreateTaskRequest, ScheduleEvent, Task, UpdateTaskRequest } from "@/types"
 
 type TaskManagerMode = "all" | "calendar"
 
@@ -26,6 +26,7 @@ interface TaskManagerProps {
   calendar?: Calendar | null
   calendars: Calendar[]
   tasks: Task[]
+  scheduleEvents?: ScheduleEvent[]
   errorMessage?: string | null
   onClearError?: () => void
   onCreateTask: (input: CreateTaskRequest) => Promise<void> | void
@@ -131,6 +132,10 @@ function isTaskOverdue(task: Task, nowMs: number) {
   return new Date(task.deadline).getTime() < nowMs
 }
 
+function hasScheduledBlock(task: Task, scheduledTaskIds: Set<string>) {
+  return task.status === "scheduled" || Boolean(task.scheduledFor) || scheduledTaskIds.has(task.id)
+}
+
 function compareTasks(left: Task, right: Task, nowMs: number, taskIndex: Map<string, number>) {
   const leftDeadlineMs = left.deadline ? new Date(left.deadline).getTime() : Number.POSITIVE_INFINITY
   const rightDeadlineMs = right.deadline ? new Date(right.deadline).getTime() : Number.POSITIVE_INFINITY
@@ -155,6 +160,7 @@ export function TaskManager({
   calendar,
   calendars,
   tasks,
+  scheduleEvents = [],
   errorMessage,
   onClearError,
   onCreateTask,
@@ -168,6 +174,15 @@ export function TaskManager({
 
   const nowMs = Date.now()
   const taskIndex = useMemo(() => new Map(tasks.map((task, index) => [task.id, index])), [tasks])
+  const scheduledTaskIds = useMemo(
+    () =>
+      new Set(
+        scheduleEvents
+          .map((event) => event.taskId)
+          .filter((taskId): taskId is string => typeof taskId === "string" && taskId.length > 0),
+      ),
+    [scheduleEvents],
+  )
   const defaultCalendarId = mode === "calendar" && calendar && calendar.id !== "cal-tasks" ? calendar.id : ""
 
   const filteredTasks = useMemo(() => {
@@ -195,10 +210,10 @@ export function TaskManager({
   const completedTasks = sortedTasks.filter((task) => task.status === "completed")
   const overdueTasks = activeTasks.filter((task) => isTaskOverdue(task, nowMs))
   const unscheduledTasks = activeTasks.filter(
-    (task) => task.status === "todo" && !isTaskOverdue(task, nowMs),
+    (task) => !hasScheduledBlock(task, scheduledTaskIds) && !isTaskOverdue(task, nowMs),
   )
   const scheduledTasks = activeTasks.filter(
-    (task) => task.status === "scheduled" && !isTaskOverdue(task, nowMs),
+    (task) => hasScheduledBlock(task, scheduledTaskIds) && !isTaskOverdue(task, nowMs),
   )
 
   const headerTitle =
@@ -270,8 +285,29 @@ export function TaskManager({
     setEditingTaskId(null)
   }
 
+  const handleRemoveTask = async (task: Task) => {
+    onClearError?.()
+
+    const isScheduledTask = task.status === "scheduled" || Boolean(task.scheduledFor)
+
+    if (isScheduledTask) {
+      await onUpdateTask(task.id, {
+        status: task.status === "completed" ? "completed" : "todo",
+        scheduledFor: null,
+      })
+      return
+    }
+
+    await onDeleteTask(task.id)
+  }
+
   const renderTaskRow = (task: Task) => {
     const isEditing = editingTaskId === task.id
+    const isScheduledTask = hasScheduledBlock(task, scheduledTaskIds)
+    const statusBadge =
+      isScheduledTask && task.status !== "completed" && task.status !== "missed"
+        ? "Scheduled"
+        : getStatusLabel(task, nowMs)
 
     return (
       <div
@@ -323,7 +359,9 @@ export function TaskManager({
               <>
                 <p className="text-sm font-semibold text-foreground">{task.title}</p>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <Badge variant={getStatusBadgeVariant(task, nowMs)}>{getStatusLabel(task, nowMs)}</Badge>
+                  <Badge variant={getStatusBadgeVariant(isScheduledTask && task.status === "todo" ? { ...task, status: "scheduled" } : task, nowMs)}>
+                    {statusBadge}
+                  </Badge>
                   {task.allDay ? <Badge variant="outline">All day</Badge> : null}
                   <Badge variant="outline">{formatDeadlineLabel(task.deadline)}</Badge>
                   {task.tags.map((tag) => (
@@ -368,10 +406,12 @@ export function TaskManager({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => void onDeleteTask(task.id)}
+                  onClick={() => void handleRemoveTask(task)}
+                  title={isScheduledTask ? "Unschedule task" : "Delete task"}
+                  aria-label={isScheduledTask ? "Unschedule task" : "Delete task"}
                   className="h-7 w-7 p-0 text-muted-foreground hover:text-red-500"
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
+                  {isScheduledTask ? <X className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
                 </Button>
               </>
             )}

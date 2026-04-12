@@ -2,6 +2,21 @@
 
 ## Log
 
+### 2026-04-12 11:51 CDT
+
+- Tightened the schedule/task-view contract across [`components/dashboard/schedule-view.tsx`](./../components/dashboard/schedule-view.tsx), [`components/dashboard/task-queue-popover.tsx`](./../components/dashboard/task-queue-popover.tsx), [`components/dashboard/task-manager.tsx`](./../components/dashboard/task-manager.tsx), and [`app/page.tsx`](./../app/page.tsx): tasks that already have scheduled calendar blocks no longer render as duplicate all-day reminders, and completed/missed tasks are also suppressed from that all-day reminder lane.
+- Added completion checkboxes to the schedule-side task queue popover and wired them through the existing task update flow, so the right-side queue can now mark tasks complete/incomplete just like the left task manager.
+- Changed the scheduled-task removal behavior in the UI: removing a scheduled task now unschedules it back into the unscheduled task view instead of deleting the underlying task row, while unscheduled tasks still use real delete.
+- Status: `pnpm exec tsc --noEmit --incremental false` passes after the schedule/task-state sync and queue-toggle pass.
+- Next step: browser-check one scheduled task through all three transitions: schedule it, remove it from the calendar to confirm it returns to Unscheduled Todo, and then delete it once it is back out of the calendar view.
+
+### 2026-04-12 12:47 CDT
+
+- Fixed the duplicate scheduled-task presentation in [`components/dashboard/schedule-view.tsx`](./../components/dashboard/schedule-view.tsx): task due reminders are no longer rendered as extra all-day items when that same task already has a scheduled task block on the calendar.
+- Root cause: the schedule view was always generating deadline reminder rows for tasks with deadlines, even after those tasks had been scheduled into `schedule_events`, so scheduled tasks could appear both as a calendar block and as an all-day reminder duplicate.
+- Status: `pnpm exec tsc --noEmit --incremental false` passes after suppressing reminder rows for already-scheduled tasks.
+- Next step: refresh the schedule and confirm scheduled tasks now appear only once instead of as both a task block and a duplicate all-day entry.
+
 ### 2026-04-12 11:45 CDT
 
 - Found why the live queue was stuck at exactly 2 items in [`app/page.tsx`](./../app/page.tsx): those were the only two seed tasks with `NULL` deadlines, so they were the only rows surviving the import into `/api/tasks`.

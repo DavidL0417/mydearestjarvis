@@ -15,7 +15,7 @@ import {
   taskMutationResponseSchema,
   updateTaskRequestSchema,
 } from "@/schemas/tasks"
-import type { DeleteTaskResponse, TaskMutationResponse, TaskRow } from "@/types"
+import type { DeleteTaskResponse, TaskMutationResponse, TaskRow, TaskStatus } from "@/types"
 
 const taskIdSchema = z.string().uuid()
 
@@ -48,6 +48,31 @@ export async function PATCH(
 
   try {
     const { adminClient, user } = await requireAuthenticatedUser()
+
+    const { data: existingTask, error: existingTaskError } = await adminClient
+      .from("tasks")
+      .select("id, status, scheduled_for")
+      .eq("id", parsedTaskId.data)
+      .eq("user_id", user.id)
+      .maybeSingle<{ id: string; status: TaskStatus; scheduled_for: string | null }>()
+
+    if (existingTaskError) {
+      throw new Error(existingTaskError.message)
+    }
+
+    if (!existingTask) {
+      return NextResponse.json({ error: "Task not found." }, { status: 404 })
+    }
+
+    if (existingTask.status === "scheduled" || existingTask.scheduled_for) {
+      return NextResponse.json(
+        {
+          error: "Scheduled tasks cannot be deleted.",
+          details: "Unschedule the task first to move it back into the unscheduled queue.",
+        },
+        { status: 409 },
+      )
+    }
 
     const { error: deleteScheduleEventsError } = await adminClient
       .from("schedule_events")

@@ -134,10 +134,22 @@ function mapScheduleEventsToCalendarEvents(
 
 function mapTaskReminderEvents(
   tasks: Task[],
+  scheduleEvents: ScheduleEvent[],
   displayDates: Date[],
 ): CalendarEvent[] {
+  const scheduledTaskIds = new Set(
+    scheduleEvents
+      .map((event) => event.taskId)
+      .filter((taskId): taskId is string => typeof taskId === "string" && taskId.length > 0),
+  )
+
   return tasks.flatMap((task) => {
-    if (!task.deadline) {
+    if (
+      !task.deadline ||
+      scheduledTaskIds.has(task.id) ||
+      task.status === "completed" ||
+      task.status === "missed"
+    ) {
       return []
     }
 
@@ -228,6 +240,7 @@ interface ScheduleViewProps {
   calendars?: Calendar[]
   events?: ScheduleEvent[]
   tasks?: Task[]
+  onToggleTaskComplete?: (task: Task) => void | Promise<void>
   plannerStatus?: string
   plannerSummary?: string
   onSchedule?: () => void | Promise<void>
@@ -239,6 +252,7 @@ export function ScheduleView({
   calendars,
   events: scheduleEvents = [],
   tasks = [],
+  onToggleTaskComplete,
   plannerStatus = "Not scheduled",
   plannerSummary = "",
   onSchedule,
@@ -452,7 +466,7 @@ export function ScheduleView({
     const mappedEvents = [
       ...mapScheduleEventsToCalendarEvents(scheduleEvents, displayDates),
       ...mapScheduleEventsToCalendarEvents(googleEvents, displayDates),
-      ...mapTaskReminderEvents(tasks, displayDates),
+      ...mapTaskReminderEvents(tasks, scheduleEvents, displayDates),
       ...mapTasksToCalendarEvents(tasks, scheduleEvents, displayDates),
     ]
     const knownCalendarIds = new Set((calendars || []).map((calendar) => calendar.id))
@@ -701,7 +715,7 @@ export function ScheduleView({
               ) : null}
               Schedule
             </Button>
-            <TaskQueuePopover tasks={tasks} />
+                <TaskQueuePopover tasks={tasks} onToggleComplete={onToggleTaskComplete} />
           </div>
 
           {/* Center - Navigation */}
@@ -767,7 +781,7 @@ export function ScheduleView({
               ) : null}
               Schedule
             </Button>
-            <TaskQueuePopover tasks={tasks} />
+            <TaskQueuePopover tasks={tasks} onToggleComplete={onToggleTaskComplete} />
           </div>
           <div className="flex items-center gap-2 ml-auto">
             <span className="text-xs text-muted-foreground font-semibold">Days:</span>

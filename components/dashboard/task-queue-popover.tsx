@@ -5,12 +5,14 @@ import { Clock3, ListTodo } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { Task } from "@/types"
 
 interface TaskQueuePopoverProps {
   tasks: Task[]
+  onToggleComplete?: (task: Task) => void | Promise<void>
 }
 
 function formatDeadline(value: string | null) {
@@ -26,7 +28,7 @@ function formatDeadline(value: string | null) {
   })
 }
 
-export function TaskQueuePopover({ tasks }: TaskQueuePopoverProps) {
+export function TaskQueuePopover({ tasks, onToggleComplete }: TaskQueuePopoverProps) {
   const sortedTasks = useMemo(() => {
     return [...tasks].sort((left, right) => {
       const leftDeadline = left.deadline ? new Date(left.deadline).getTime() : Number.POSITIVE_INFINITY
@@ -85,35 +87,43 @@ export function TaskQueuePopover({ tasks }: TaskQueuePopoverProps) {
             <div className="space-y-2 p-3">
               {sortedTasks.map((task) => (
                 <div
-                  key={`${task.title}-${task.deadline ?? "no-deadline"}`}
+                  key={task.id}
                   className="rounded-[20px] border border-white/8 bg-white/[0.04] p-3 shadow-[0_10px_24px_rgba(0,0,0,0.14)]"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-foreground">{task.title}</p>
-                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                        <Badge variant="outline" className="border-white/10 bg-white/[0.04]">
-                          {task.status}
-                        </Badge>
-                        <Badge variant="outline" className="border-white/10 bg-white/[0.04]">
-                          {task.priority}
-                        </Badge>
-                        {task.tags.slice(0, 2).map((tag) => (
-                          <Badge key={tag} variant="outline" className="border-white/10 bg-white/[0.04]">
-                            {tag}
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      checked={task.status === "completed"}
+                      onCheckedChange={() => void onToggleComplete?.(task)}
+                      aria-label={task.status === "completed" ? `Mark ${task.title} incomplete` : `Mark ${task.title} complete`}
+                      className="mt-1 border-2"
+                    />
+                    <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-foreground">{task.title}</p>
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                          <Badge variant="outline" className="border-white/10 bg-white/[0.04]">
+                            {task.status}
                           </Badge>
-                        ))}
+                          <Badge variant="outline" className="border-white/10 bg-white/[0.04]">
+                            {task.priority}
+                          </Badge>
+                          {task.tags.slice(0, 2).map((tag) => (
+                            <Badge key={tag} variant="outline" className="border-white/10 bg-white/[0.04]">
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="flex shrink-0 items-center gap-1 rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
-                      <Clock3 className="h-3.5 w-3.5" />
-                      {formatDeadline(task.deadline)}
+                      <div className="flex shrink-0 items-center gap-1 rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+                        <Clock3 className="h-3.5 w-3.5" />
+                        {formatDeadline(task.deadline)}
+                      </div>
                     </div>
                   </div>
 
                   {task.description ? (
-                    <p className="mt-2 line-clamp-2 text-xs font-medium text-muted-foreground">
+                    <p className="mt-2 line-clamp-2 pl-8 text-xs font-medium text-muted-foreground">
                       {task.description}
                     </p>
                   ) : null}

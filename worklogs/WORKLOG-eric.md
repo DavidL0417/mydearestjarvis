@@ -2,6 +2,28 @@
 
 ## Log
 
+### 2026-04-12 12:47 CDT
+
+- Added a dedicated unschedule path in [`lib/assistant/secretary.ts`](./../lib/assistant/secretary.ts): the new `unschedule_task` tool removes a task’s `schedule_events` rows and clears `scheduledFor` while preserving the underlying task record.
+- Updated the secretary prompt guidance so requests like `remove this from my calendar but keep the task` use `unschedule_task` instead of `delete_task`.
+- Status: `pnpm exec tsc --noEmit --incremental false` passes after the unschedule-tool addition.
+- Next step: retry a prompt like `Take Finish CS397 sprint outline off my calendar but keep it in my task list` and confirm the calendar block disappears while the task remains in the queue.
+
+### 2026-04-12 12:34 CDT
+
+- Relaxed duplicate-task matching in [`lib/assistant/secretary.ts`](./../lib/assistant/secretary.ts) so duplicate cleanup is no longer blocked by scheduling metadata. The dedupe key now ignores `status` and `scheduledFor`, and duplicate groups keep the highest-value copy (preferring scheduled rows) while deleting the rest.
+- This means duplicate cleanup now works even when one copy has already been scheduled and another copy is still unscheduled, which was the main case still slipping through after the first duplicate-delete tool pass.
+- Status: `pnpm exec tsc --noEmit --incremental false` passes after the duplicate-retention scoring update.
+- Next step: retry `Delete these duplicate tasks`; it should now remove repeated unscheduled copies while preserving the best surviving row.
+
+### 2026-04-12 12:28 CDT
+
+- Fixed the secretary’s task-deletion failure in [`lib/assistant/secretary.ts`](./../lib/assistant/secretary.ts): broad cleanup prompts like `Delete these duplicate tasks` no longer die on a missing `delete_task.target` field.
+- Added a dedicated `delete_duplicate_tasks` tool that removes duplicate task rows while keeping one copy, updated the system prompt to prefer that tool for duplicate cleanup, and added a defensive execution fallback so a malformed `delete_task` call with no target degrades into duplicate cleanup or a clarification response instead of a hard backend error.
+- Root cause: Claude was trying to handle duplicate cleanup through the single-target `delete_task` tool, but that schema requires `target`, so the tool call failed Zod parsing before any deletion logic could run.
+- Status: `pnpm exec tsc --noEmit --incremental false` passes after the duplicate-delete tool + malformed-tool-call fallback.
+- Next step: retry `Delete these duplicate tasks`; the secretary should now remove repeated rows instead of surfacing the `target is required` schema error.
+
 ### 2026-04-12 12:03 CDT
 
 - Wired real Google calendar events into the actual scheduling context by extracting a shared server helper in [`lib/google-calendar-events.ts`](./../lib/google-calendar-events.ts) and reusing it from [`app/api/google-calendar/events/route.ts`](./../app/api/google-calendar/events/route.ts), [`lib/assistant/context.ts`](./../lib/assistant/context.ts), and [`app/api/schedule/route.ts`](./../app/api/schedule/route.ts).

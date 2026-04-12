@@ -93,6 +93,14 @@ const deleteTaskInputSchema = z.object({
   target: z.string().min(1),
 })
 
+const unscheduleTaskInputSchema = z.object({
+  target: z.string().min(1),
+})
+
+const deleteDuplicateTasksInputSchema = z.object({
+  query: z.string().nullable().optional(),
+})
+
 const listEventsInputSchema = z.object({
   query: z.string().nullable().optional(),
   from: z.string().nullable().optional(),
@@ -313,6 +321,84 @@ function exactOrFuzzyMatch<T extends { id: string; title: string }>(items: T[], 
   return {
     match: null,
     clarification: `I couldn't find anything matching "${query}".`,
+  }
+}
+
+function normalizeDuplicateTaskKey(task: Task) {
+  return [
+    task.title.trim().toLowerCase(),
+    task.description?.trim().toLowerCase() ?? "no-description",
+    task.deadline ?? "no-deadline",
+    task.priority,
+    task.allDay ? "all-day" : "timed",
+    [...task.tags].sort().join("|"),
+  ].join("::")
+}
+
+function getTaskDuplicateRetentionScore(task: Task) {
+  let score = 0
+
+  if (task.scheduledFor) score += 100
+  if (task.status === "scheduled") score += 50
+  if (task.status === "todo") score += 25
+  if (task.description) score += 10
+
+  return score
+}
+
+function getDuplicateTasks(tasks: Task[], query?: string | null) {
+  const filteredTasks = query
+    ? tasks.filter((task) => task.title.toLowerCase().includes(query.toLowerCase()))
+    : tasks
+  const grouped = new Map<string, Task[]>()
+
+  for (const task of filteredTasks) {
+    const key = normalizeDuplicateTaskKey(task)
+    const group = grouped.get(key)
+
+    if (group) {
+      group.push(task)
+    } else {
+      grouped.set(key, [task])
+    }
+  }
+
+  return Array.from(grouped.values())
+    .filter((group) => group.length > 1)
+    .flatMap((group) =>
+      [...group]
+        .sort((left, right) => getTaskDuplicateRetentionScore(right) - getTaskDuplicateRetentionScore(left))
+        .slice(1),
+    )
+}
+
+async function unscheduleTaskRecord(task: Task, context: ToolExecutionContext) {
+  const [deleteEventsResult, updateTaskResult] = await Promise.all([
+    context.supabase
+      .from("schedule_events")
+      .delete()
+      .eq("user_id", context.userId)
+      .eq("source", "task")
+      .eq("task_id", task.id),
+    context.supabase
+      .from("tasks")
+      .update(
+        mapTaskToUpdate({
+          status: task.status === "completed" ? "completed" : "todo",
+          scheduledFor: null,
+          calendarId: getTasksCalendarId(),
+        }),
+      )
+      .eq("id", task.id)
+      .eq("user_id", context.userId),
+  ])
+
+  if (deleteEventsResult.error) {
+    throw new Error(deleteEventsResult.error.message)
+  }
+
+  if (updateTaskResult.error) {
+    throw new Error(updateTaskResult.error.message)
   }
 }
 
@@ -828,7 +914,7 @@ const toolDefinitions: ToolDefinition[] = [
   },
   {
     name: "delete_task",
-    description: "Delete a task by title or id.",
+    description: "Delete a single task by title or id. Use delete_duplicate_tasks when the user asks to remove duplicates or repeated task rows.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -851,6 +937,19 @@ const toolDefinitions: ToolDefinition[] = [
       }
 
       const task = matched.match
+      const isScheduledTask = task.status === "scheduled" || Boolean(task.scheduledFor)
+
+      if (isScheduledTask) {
+        await unscheduleTaskRecord(task, context)
+
+        return {
+          receipt: makeReceipt("delete_task", "completed", `Removed "${task.title}" from the calendar. Scheduled tasks are unscheduled instead of deleted.`),
+          mutated: true,
+          clarification: null,
+          payload: { taskId: task.id, action: "unscheduled" },
+        }
+      }
+
       const [deleteTaskResult, deleteEventsResult] = await Promise.all([
         context.supabase.from("tasks").delete().eq("id", task.id),
         context.supabase.from("schedule_events").delete().eq("task_id", task.id),
@@ -869,6 +968,96 @@ const toolDefinitions: ToolDefinition[] = [
         mutated: true,
         clarification: null,
         payload: { taskId: task.id },
+      }
+    },
+  },
+  {
+    name: "unschedule_task",
+    description: "Remove a task's calendar block without deleting the task itself.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        target: { type: "string" },
+      },
+      required: ["target"],
+    },
+    async execute(input, context) {
+      const parsed = unscheduleTaskInputSchema.parse(input)
+      const matched = exactOrFuzzyMatch(context.runtime.tasks, parsed.target)
+
+      if (!matched.match) {
+        return {
+          receipt: makeReceipt("unschedule_task", "clarification", matched.clarification || "Task target was ambiguous."),
+          mutated: false,
+          clarification: matched.clarification,
+          payload: { clarification: matched.clarification },
+        }
+      }
+
+      const task = matched.match
+      await unscheduleTaskRecord(task, context)
+
+      return {
+        receipt: makeReceipt("unschedule_task", "completed", `Removed "${task.title}" from the calendar without deleting the task.`),
+        mutated: true,
+        clarification: null,
+        payload: { taskId: task.id },
+      }
+    },
+  },
+  {
+    name: "delete_duplicate_tasks",
+    description: "Delete duplicate task rows, keeping one copy of each identical task. Optionally narrow by a title query.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        query: { type: "string" },
+      },
+    },
+    async execute(input, context) {
+      const parsed = deleteDuplicateTasksInputSchema.parse(input)
+      const duplicates = getDuplicateTasks(context.runtime.tasks, parsed.query)
+
+      if (duplicates.length === 0) {
+        const clarification = parsed.query
+          ? `I couldn't find duplicate tasks matching "${parsed.query}".`
+          : "I couldn't find any duplicate tasks to delete."
+
+        return {
+          receipt: makeReceipt("delete_duplicate_tasks", "clarification", clarification),
+          mutated: false,
+          clarification,
+          payload: { clarification },
+        }
+      }
+
+      const duplicateIds = duplicates.map((task) => task.id)
+      const duplicateTitles = Array.from(new Set(duplicates.map((task) => task.title))).slice(0, 3)
+      const [deleteTaskResult, deleteEventsResult] = await Promise.all([
+        context.supabase.from("tasks").delete().in("id", duplicateIds),
+        context.supabase.from("schedule_events").delete().in("task_id", duplicateIds),
+      ])
+
+      if (deleteTaskResult.error) {
+        throw new Error(deleteTaskResult.error.message)
+      }
+
+      if (deleteEventsResult.error) {
+        throw new Error(deleteEventsResult.error.message)
+      }
+
+      const summary =
+        duplicateTitles.length > 0
+          ? `Deleted ${duplicates.length} duplicate task${duplicates.length === 1 ? "" : "s"}, including ${duplicateTitles.join(", ")}.`
+          : `Deleted ${duplicates.length} duplicate task${duplicates.length === 1 ? "" : "s"}.`
+
+      return {
+        receipt: makeReceipt("delete_duplicate_tasks", "completed", summary),
+        mutated: true,
+        clarification: null,
+        payload: { deletedTaskIds: duplicateIds },
       }
     },
   },
@@ -1456,6 +1645,8 @@ function buildSystemPrompt(
     "Act like a smart, conversational executive assistant who is actually talking to the user, not filling out a form.",
     "Use tools whenever you need to inspect or change data.",
     "You may create, update, move, or delete tasks and events, and you may edit memory and availability context.",
+    "When the user asks to remove duplicate tasks or repeated task rows, use delete_duplicate_tasks instead of delete_task.",
+    "When the user wants a task removed from the calendar but kept in the task list, use unschedule_task instead of delete_task.",
     'Create timed appointments or calendar blocks with create_event. Use create_task for actionable work items; tasks only appear on the calendar after they have a scheduled block or date anchor.',
     'All assistant-managed calendar writes belong in the Tasks calendar. If no calendar named "Tasks" or "Task" is configured, explain that clearly instead of pretending the write succeeded.',
     `Current local time for this request: ${formatCurrentMomentForPrompt(requestContext.now, requestContext.timeZone)}.`,
@@ -1531,6 +1722,20 @@ async function executeToolByName(
   input: unknown,
   context: ToolExecutionContext,
 ) {
+  const inputRecord = input && typeof input === "object" ? input as Record<string, unknown> : null
+
+  if (
+    toolName === "delete_task" &&
+    (!inputRecord || typeof inputRecord.target !== "string" || inputRecord.target.trim().length === 0) &&
+    /\bduplicate\b/i.test(context.requestMessage)
+  ) {
+    const duplicateDefinition = toolDefinitions.find((tool) => tool.name === "delete_duplicate_tasks")
+
+    if (duplicateDefinition) {
+      return duplicateDefinition.execute({}, context)
+    }
+  }
+
   const definition = toolDefinitions.find((tool) => tool.name === toolName)
 
   if (!definition) {
@@ -1542,7 +1747,28 @@ async function executeToolByName(
     }
   }
 
-  return definition.execute(input, context)
+  try {
+    return await definition.execute(input, context)
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      const clarification =
+        toolName === "delete_task"
+          ? "I need the specific task title to delete, unless you want me to remove duplicate copies."
+          : "I need a bit more detail before I can run that action."
+
+      return {
+        receipt: makeReceipt(toolName, "clarification", clarification),
+        mutated: false,
+        clarification,
+        payload: {
+          clarification,
+          issues: error.issues,
+        },
+      }
+    }
+
+    throw error
+  }
 }
 
 function extractTextReply(message: Anthropic.Messages.Message) {
