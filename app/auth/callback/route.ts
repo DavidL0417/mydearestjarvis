@@ -16,6 +16,26 @@ function getSafeRedirectPath(candidate: string | null) {
   return candidate
 }
 
+async function bootstrapAuthenticatedGoogleUser() {
+  const supabase = await createSupabaseServerClient()
+  const [{ data: userData }, { data: sessionData }] = await Promise.all([
+    supabase.auth.getUser(),
+    supabase.auth.getSession(),
+  ])
+
+  if (!userData.user) {
+    return
+  }
+
+  const profile = await getOrCreateUserProfile(userData.user)
+  await upsertGoogleCalendarIntegration({
+    userId: profile.id,
+    authUser: userData.user,
+    ...getGoogleTokensFromSession(sessionData.session),
+  })
+  await ensureTaskCalendarForUser(profile.id)
+}
+
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get("code")
@@ -26,19 +46,10 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (!error) {
-      const [{ data: userData }, { data: sessionData }] = await Promise.all([
-        supabase.auth.getUser(),
-        supabase.auth.getSession(),
-      ])
-
-      if (userData.user) {
-        const profile = await getOrCreateUserProfile(userData.user)
-        await upsertGoogleCalendarIntegration({
-          userId: profile.id,
-          authUser: userData.user,
-          ...getGoogleTokensFromSession(sessionData.session),
-        })
-        await ensureTaskCalendarForUser(profile.id)
+      try {
+        await bootstrapAuthenticatedGoogleUser()
+      } catch (bootstrapError) {
+        console.error("Google auth callback bootstrap failed after session exchange.", bootstrapError)
       }
 
       return NextResponse.redirect(new URL(next, requestUrl.origin))

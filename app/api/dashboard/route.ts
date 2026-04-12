@@ -12,8 +12,9 @@ import {
   isAuthenticationRequiredError,
   requireAuthenticatedUser,
 } from "@/lib/supabase/auth"
+import { runScheduleEventsSelectWithCompat } from "@/lib/supabase/schema-compat"
 import { dashboardResponseSchema } from "@/schemas/dashboard"
-import type { DashboardResponse, Task } from "@/types"
+import type { DashboardResponse, ScheduleEventRow, Task } from "@/types"
 
 function pickCurrentTask(tasks: Task[]): DashboardResponse["currentTask"] {
   const scheduledTask = tasks.find((task) => task.status === "scheduled")
@@ -51,13 +52,13 @@ export async function GET() {
         )
         .eq("user_id", user.id)
         .order("created_at", { ascending: true }),
-      adminClient
-        .from("schedule_events")
-        .select(
-          "id, user_id, task_id, title, starts_at, ends_at, source, priority, status, location, external_event_id, gcal_event_id, last_synced_from, created_at, updated_at, is_immutable, is_checked_in, all_day, calendar_id",
-        )
-        .eq("user_id", user.id)
-        .order("starts_at", { ascending: true }),
+      runScheduleEventsSelectWithCompat(async (selectClause) =>
+        await adminClient
+          .from("schedule_events")
+          .select(selectClause)
+          .eq("user_id", user.id)
+          .order("starts_at", { ascending: true }),
+      ),
       adminClient.from("checkins").select("id").eq("user_id", user.id).limit(4),
     ])
 
@@ -71,11 +72,11 @@ export async function GET() {
     }
 
     const tasks = (tasksResult.data || []).map(mapTaskRowToTask)
-    const events = (eventsResult.data || [])
+    const events = ((eventsResult.data || []) as unknown as ScheduleEventRow[])
       .map(mapScheduleEventRowToScheduleEvent)
       .sort((left, right) => new Date(left.start).getTime() - new Date(right.start).getTime())
     const scheduledTaskIds = new Set(
-      (eventsResult.data || [])
+      ((eventsResult.data || []) as unknown as Array<{ task_id: string | null }>)
         .map((event) => event.task_id)
         .filter((taskId): taskId is string => typeof taskId === "string" && taskId.length > 0),
     )

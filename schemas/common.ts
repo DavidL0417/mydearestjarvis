@@ -50,7 +50,7 @@ export const taskSchema = z.object({
 })
 
 export const userCalendarSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().min(1),
   userId: z.string().uuid(),
   calendarKey: z.string().min(1),
   name: z.string().min(1),

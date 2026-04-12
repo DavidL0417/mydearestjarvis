@@ -6,10 +6,12 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { mapPreferencesRowToPreferences, mapScheduleEventRowToScheduleEvent, mapTaskRowToTask } from "@/lib/data/mappers"
 import { buildMemorySummaryMarkdown, deriveAvailabilityWindowsFromScheduleContext } from "@/lib/ai/claude"
 import { createPlaceholderCalendarEvents } from "@/lib/mock-calendar-events"
+import { runScheduleEventsSelectWithCompat } from "@/lib/supabase/schema-compat"
 import type {
   AssistantContextData,
   MemoryEntrySummary,
   ScheduleEvent,
+  ScheduleEventRow,
   Task,
   UserPreferences,
   UserPreferencesRow,
@@ -149,13 +151,13 @@ export async function loadAssistantRuntimeContext(
       )
       .eq("user_id", userId)
       .order("created_at", { ascending: true }),
-    supabase
-      .from("schedule_events")
-      .select(
-        "id, user_id, task_id, title, starts_at, ends_at, source, priority, status, location, external_event_id, gcal_event_id, last_synced_from, created_at, updated_at, is_immutable, is_checked_in, all_day, calendar_id",
-      )
-      .eq("user_id", userId)
-      .order("starts_at", { ascending: true }),
+    runScheduleEventsSelectWithCompat(async (selectClause) =>
+      await supabase
+        .from("schedule_events")
+        .select(selectClause)
+        .eq("user_id", userId)
+        .order("starts_at", { ascending: true }),
+    ),
     supabase
       .from("memory_logs")
       .select("id, category, insight, source, confidence, created_at")
@@ -177,7 +179,9 @@ export async function loadAssistantRuntimeContext(
     ...mapPreferencesRowToPreferences(preferencesResult.data),
   }
   const tasks = (tasksResult.data || []).map(mapTaskRowToTask)
-  const persistedEvents = (eventsResult.data || []).map(mapScheduleEventRowToScheduleEvent)
+  const persistedEvents = ((eventsResult.data || []) as unknown as ScheduleEventRow[]).map(
+    mapScheduleEventRowToScheduleEvent,
+  )
   const placeholderEvents = createPlaceholderCalendarEvents(userId)
   const persistedEventKeys = new Set(persistedEvents.map(getEventIdentity))
   const events = [

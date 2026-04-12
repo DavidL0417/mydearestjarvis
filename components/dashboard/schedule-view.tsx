@@ -17,8 +17,10 @@ import {
   getTaskDueTimeLabel,
   TASKS_CALENDAR_ID,
 } from "@/lib/task-calendar-constants"
+import type { SeedDemoTask } from "@/lib/seed-demo-tasks"
 import type { ScheduleEvent, Task } from "@/types"
 import type { Calendar } from "./calendars-sidebar"
+import { TaskQueuePopover } from "./task-queue-popover"
 
 type ViewMode = "1day" | "3days" | "7days" | "1month"
 type SyncStatus = "idle" | "syncing" | "success" | "error"
@@ -73,6 +75,23 @@ function getFallbackColor(calendarId: string | null) {
   return fallbackColors[hash % fallbackColors.length]
 }
 
+function getFallbackEventColorStyle(color: CalendarEvent["color"]) {
+  switch (color) {
+    case "mint":
+      return { backgroundColor: "#4ade80", color: "#052e16" }
+    case "blue":
+      return { backgroundColor: "#3b82f6", color: "#ffffff" }
+    case "yellow":
+      return { backgroundColor: "#fde047", color: "#422006" }
+    case "orange":
+      return { backgroundColor: "#fb923c", color: "#431407" }
+    case "purple":
+      return { backgroundColor: "#c084fc", color: "#3b0764" }
+    case "cyan":
+      return { backgroundColor: "#22d3ee", color: "#083344" }
+  }
+}
+
 function isSameCalendarDay(left: Date, right: Date) {
   return (
     left.getFullYear() === right.getFullYear() &&
@@ -100,7 +119,7 @@ function mapScheduleEventsToCalendarEvents(
         title: event.title,
         start: event.start,
         end: event.end,
-        source: "local" as const,
+        source: event.lastSyncedFrom === "gcal" || Boolean(event.gcalEventId) ? "google" as const : "local" as const,
         isReadOnly: event.isImmutable,
         calendarId: event.calendarId || DEFAULT_BACKEND_CALENDAR_ID,
         allDay: event.allDay,
@@ -210,6 +229,7 @@ interface ScheduleViewProps {
   calendars?: Calendar[]
   events?: ScheduleEvent[]
   tasks?: Task[]
+  seedTasks?: SeedDemoTask[]
   plannerStatus?: string
   plannerSummary?: string
   onSchedule?: () => void | Promise<void>
@@ -221,6 +241,7 @@ export function ScheduleView({
   calendars,
   events: scheduleEvents = [],
   tasks = [],
+  seedTasks = [],
   plannerStatus = "Not scheduled",
   plannerSummary = "",
   onSchedule,
@@ -238,6 +259,8 @@ export function ScheduleView({
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null)
   const [hasFetchedGoogleEvents, setHasFetchedGoogleEvents] = useState(false)
   const [selectedTaskReminder, setSelectedTaskReminder] = useState<CalendarEvent | null>(null)
+  const gridScrollRef = useRef<HTMLDivElement | null>(null)
+  const hasAutoScrolledRef = useRef(false)
   const successResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -352,7 +375,7 @@ export function ScheduleView({
         color: textColor,
       }
     }
-    return {}
+    return getFallbackEventColorStyle(event.color)
   }
 
   // Navigation helpers
@@ -435,11 +458,18 @@ export function ScheduleView({
       ...mapTaskReminderEvents(tasks, displayDates),
       ...mapTasksToCalendarEvents(tasks, scheduleEvents, displayDates),
     ]
+    const knownCalendarIds = new Set((calendars || []).map((calendar) => calendar.id))
 
     return visibleCalendarIds
-      ? mappedEvents.filter((event) => visibleCalendarIds.includes(event.calendarId))
+      ? mappedEvents.filter((event) => {
+          if (visibleCalendarIds.includes(event.calendarId)) {
+            return true
+          }
+
+          return event.source === "google" && !knownCalendarIds.has(event.calendarId)
+        })
       : mappedEvents
-  }, [displayDates, googleEvents, scheduleEvents, tasks, visibleCalendarIds])
+  }, [calendars, displayDates, googleEvents, scheduleEvents, tasks, visibleCalendarIds])
   const allDayEvents = useMemo(
     () => events.filter((event) => event.allDay),
     [events],
@@ -457,6 +487,36 @@ export function ScheduleView({
     [events],
   )
   const hasVisibleEvents = events.length > 0
+
+  useEffect(() => {
+    hasAutoScrolledRef.current = false
+  }, [selectedDate, viewMode])
+
+  useEffect(() => {
+    if (viewMode === "1month" || !gridScrollRef.current || hasAutoScrolledRef.current) {
+      return
+    }
+
+    if (isGoogleEventsLoading && timedEvents.length === 0) {
+      return
+    }
+
+    const now = new Date()
+    const isCurrentWeekVisible = displayDates.some((date) => isSameCalendarDay(date, now))
+    const earliestTimedHour =
+      timedEvents.length > 0
+        ? Math.max(Math.floor(Math.min(...timedEvents.map((event) => event.startHour))) - 1, 0)
+        : null
+    const targetHour = isCurrentWeekVisible
+      ? Math.max(now.getHours() - 1, 0)
+      : earliestTimedHour ?? 7
+
+    gridScrollRef.current.scrollTo({
+      top: targetHour * 48,
+      behavior: "auto",
+    })
+    hasAutoScrolledRef.current = true
+  }, [displayDates, isGoogleEventsLoading, timedEvents, viewMode])
 
   // Get day names for the current view
   const getDayHeaders = () => {
@@ -644,6 +704,7 @@ export function ScheduleView({
               ) : null}
               Schedule
             </Button>
+            <TaskQueuePopover tasks={seedTasks} />
           </div>
 
           {/* Center - Navigation */}
@@ -697,17 +758,20 @@ export function ScheduleView({
 
         {/* Mobile Controls */}
         <div className="flex md:hidden items-center justify-between mb-2 gap-2">
-          <Button
-            size="sm"
-            onClick={() => onSchedule?.()}
-            disabled={isScheduling || !onSchedule}
-            className="bg-[#3b82f6] hover:bg-[#2563eb] text-white text-[10px] h-6 px-2 font-semibold disabled:opacity-70"
-          >
-            {isScheduling ? (
-              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-            ) : null}
-            Schedule
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <Button
+              size="sm"
+              onClick={() => onSchedule?.()}
+              disabled={isScheduling || !onSchedule}
+              className="bg-[#3b82f6] hover:bg-[#2563eb] text-white text-[10px] h-6 px-2 font-semibold disabled:opacity-70"
+            >
+              {isScheduling ? (
+                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+              ) : null}
+              Schedule
+            </Button>
+            <TaskQueuePopover tasks={seedTasks} />
+          </div>
           <div className="flex items-center gap-2 ml-auto">
             <span className="text-xs text-muted-foreground font-semibold">Days:</span>
             <div className="flex gap-0.5 bg-secondary/50 rounded-lg p-0.5">
@@ -784,7 +848,7 @@ export function ScheduleView({
           </div>
         ) : (
           /* Calendar Grid - Day Views (1, 3, 7 days) */
-          <div className="flex-1 overflow-auto relative">
+          <div ref={gridScrollRef} className="flex-1 overflow-auto relative">
             {isGoogleEventsLoading && !hasVisibleEvents ? (
               <div className="absolute inset-0 z-20 flex items-center justify-center bg-card/80 backdrop-blur-sm">
                 <div className="flex items-center gap-3 rounded-full border border-border bg-card px-4 py-2 text-sm font-semibold text-foreground shadow-sm">

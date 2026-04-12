@@ -26,6 +26,7 @@ type StoredGoogleIntegrationRow = {
 type GoogleCalendarListItem = {
   id?: string
   summary?: string
+  backgroundColor?: string
 }
 
 type GoogleCalendarListResponse = {
@@ -71,6 +72,73 @@ function buildFallbackTaskCalendar(userId: string): UserCalendar {
   }
 }
 
+function buildSyntheticGoogleCalendar(userId: string, calendar: GoogleCalendarListItem): UserCalendar | null {
+  const googleCalendarId = calendar.id?.trim()
+
+  if (!googleCalendarId) {
+    return null
+  }
+
+  const summary = calendar.summary?.trim() || "Google Calendar"
+
+  return {
+    id: `google-calendar:${googleCalendarId}`,
+    userId,
+    calendarKey: `google-calendar:${googleCalendarId}`,
+    name: summary,
+    color: calendar.backgroundColor?.trim() || "#93c5fd",
+    source: "google",
+    googleCalendarId,
+    remoteName: summary,
+    isVisible: true,
+    isImmutable: true,
+    syncPreference: "active",
+    isTaskCalendar: false,
+    createdAt: new Date(0).toISOString(),
+    updatedAt: new Date(0).toISOString(),
+  }
+}
+
+async function listSyntheticGoogleCalendars(userId: string) {
+  const accessToken = await resolveGoogleAccessToken(userId)
+
+  if (!accessToken) {
+    return []
+  }
+
+  try {
+    const calendars = await listGoogleCalendars(accessToken)
+    return calendars
+      .map((calendar) => buildSyntheticGoogleCalendar(userId, calendar))
+      .filter((calendar): calendar is UserCalendar => calendar !== null)
+  } catch (error) {
+    console.error("Failed to list Google calendars for sidebar", error)
+    return []
+  }
+}
+
+function mergeCalendarsWithGoogleFallback(baseCalendars: UserCalendar[], googleCalendars: UserCalendar[]) {
+  if (googleCalendars.length === 0) {
+    return baseCalendars
+  }
+
+  const existingKeys = new Set(
+    baseCalendars.flatMap((calendar) => [calendar.calendarKey, calendar.googleCalendarId ?? ""]),
+  )
+
+  const merged = [...baseCalendars]
+
+  for (const calendar of googleCalendars) {
+    if (existingKeys.has(calendar.calendarKey) || existingKeys.has(calendar.googleCalendarId ?? "")) {
+      continue
+    }
+
+    merged.push(calendar)
+  }
+
+  return merged
+}
+
 function mapStoredUserCalendarRow(row: UserCalendarRow): UserCalendar {
   return {
     id: row.id,
@@ -90,8 +158,20 @@ function mapStoredUserCalendarRow(row: UserCalendarRow): UserCalendar {
   }
 }
 
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message
+  }
+
+  if (typeof error === "object" && error !== null && "message" in error && typeof error.message === "string") {
+    return error.message
+  }
+
+  return String(error)
+}
+
 export function isMissingUserCalendarsTableError(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error)
+  const message = getErrorMessage(error)
 
   return (
     message.includes("public.user_calendars") &&
@@ -337,13 +417,19 @@ export async function listUserCalendars(userId: string) {
   if (error) {
     if (isMissingUserCalendarsTableError(error)) {
       console.warn(MISSING_USER_CALENDARS_TABLE_HINT)
-      return [buildFallbackTaskCalendar(userId)]
+      return mergeCalendarsWithGoogleFallback(
+        [buildFallbackTaskCalendar(userId)],
+        await listSyntheticGoogleCalendars(userId),
+      )
     }
 
     throw new Error(error.message)
   }
 
-  return (data ?? []).map(mapStoredUserCalendarRow)
+  return mergeCalendarsWithGoogleFallback(
+    (data ?? []).map(mapStoredUserCalendarRow),
+    await listSyntheticGoogleCalendars(userId),
+  )
 }
 
 export { buildTaskReminderDescription, getTaskDueTimeLabel, isTaskCalendarKey }

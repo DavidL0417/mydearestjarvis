@@ -10,6 +10,10 @@ import { loadAssistantRuntimeContext, type AssistantRuntimeContext } from "@/lib
 import { getRequiredTasksCalendarPreset } from "@/lib/calendar-config"
 import { addMinutes, normalizeNullableText, resolveAllDayRange, resolveNaturalDateTime } from "@/lib/assistant/date-utils"
 import { mapTaskToUpdate } from "@/lib/data/mappers"
+import {
+  isMissingScheduleEventPriorityError,
+  runScheduleEventMutationWithCompat,
+} from "@/lib/supabase/schema-compat"
 import { assistantMessageResponseSchema, type AssistantToolCallResultInput } from "@/schemas/assistant"
 import type {
   AssistantConversationEntry,
@@ -481,8 +485,7 @@ async function persistSchedulePlan(
   }
 
   if (plannedEvents.length > 0) {
-    const insertResult = await supabase.from("schedule_events").insert(
-      plannedEvents.map((event) => ({
+    const insertPayload = plannedEvents.map((event) => ({
         id: event.id,
         user_id: userId,
         task_id: event.taskId,
@@ -500,7 +503,10 @@ async function persistSchedulePlan(
         is_checked_in: event.isCheckedIn ?? false,
         all_day: event.allDay,
         calendar_id: tasksCalendarId,
-      })),
+      }))
+    const insertResult = await runScheduleEventMutationWithCompat(
+      insertPayload,
+      async (payload) => await supabase.from("schedule_events").insert(payload),
     )
 
     if (insertResult.error) {
@@ -613,7 +619,7 @@ const toolDefinitions: ToolDefinition[] = [
 
       if (scheduledFor) {
         const end = addMinutes(scheduledFor, durationMinutes)
-        const eventInsertResult = await context.supabase.from("schedule_events").insert({
+        const eventInsertPayload = {
           user_id: context.userId,
           task_id: insertResult.data.id,
           title: parsed.title.trim(),
@@ -630,7 +636,11 @@ const toolDefinitions: ToolDefinition[] = [
           is_checked_in: false,
           all_day: false,
           calendar_id: tasksCalendarId,
-        })
+        }
+        const eventInsertResult = await runScheduleEventMutationWithCompat(
+          eventInsertPayload,
+          async (payload) => await context.supabase.from("schedule_events").insert(payload),
+        )
 
         if (eventInsertResult.error) {
           throw new Error(eventInsertResult.error.message)
@@ -730,7 +740,7 @@ const toolDefinitions: ToolDefinition[] = [
 
         if (scheduledFor && parsed.status !== "completed") {
           const end = addMinutes(scheduledFor, parsed.durationMinutes ?? task.durationMinutes ?? context.runtime.preferences.defaultTaskDurationMinutes)
-          const insertResult = await context.supabase.from("schedule_events").insert({
+          const insertPayload = {
             user_id: context.userId,
             task_id: task.id,
             title: parsed.title ?? task.title,
@@ -747,7 +757,11 @@ const toolDefinitions: ToolDefinition[] = [
             is_checked_in: false,
             all_day: allDay,
             calendar_id: tasksCalendarId,
-          })
+          }
+          const insertResult = await runScheduleEventMutationWithCompat(
+            insertPayload,
+            async (payload) => await context.supabase.from("schedule_events").insert(payload),
+          )
 
           if (insertResult.error) {
             throw new Error(insertResult.error.message)
@@ -885,7 +899,7 @@ const toolDefinitions: ToolDefinition[] = [
         }
       }
 
-      const insertResult = await context.supabase.from("schedule_events").insert({
+      const insertPayload = {
         user_id: context.userId,
         task_id: null,
         title: parsed.title.trim(),
@@ -902,7 +916,11 @@ const toolDefinitions: ToolDefinition[] = [
         is_checked_in: false,
         all_day: parsed.allDay,
         calendar_id: tasksCalendarId,
-      })
+      }
+      const insertResult = await runScheduleEventMutationWithCompat(
+        insertPayload,
+        async (payload) => await context.supabase.from("schedule_events").insert(payload),
+      )
 
       if (insertResult.error) {
         throw new Error(insertResult.error.message)
@@ -996,9 +1014,7 @@ const toolDefinitions: ToolDefinition[] = [
         range = resolvedRange
       }
 
-      const updateResult = await context.supabase
-        .from("schedule_events")
-        .update({
+      const updatePayload = {
           title: parsed.title ?? event.title,
           starts_at: range.start,
           ends_at: range.end,
@@ -1014,8 +1030,15 @@ const toolDefinitions: ToolDefinition[] = [
           gcal_event_id: event.gcalEventId,
           last_synced_from: "local",
           source: parsed.isImmutable === false ? "focus" : parsed.isImmutable === true ? "calendar" : event.source,
-        })
-        .eq("id", event.id)
+        }
+      const updateResult = await runScheduleEventMutationWithCompat(
+        updatePayload,
+        async (payload) =>
+          await context.supabase
+            .from("schedule_events")
+            .update(payload)
+            .eq("id", event.id),
+      )
 
       if (updateResult.error) {
         throw new Error(updateResult.error.message)
@@ -1479,6 +1502,22 @@ function extractTextReply(message: Anthropic.Messages.Message) {
     .trim()
 }
 
+async function refreshAssistantRuntimeContext(
+  supabase: SupabaseClient,
+  userId: string,
+  fallbackRuntime: AssistantRuntimeContext,
+) {
+  try {
+    return await loadAssistantRuntimeContext(supabase, userId)
+  } catch (error) {
+    if (isMissingScheduleEventPriorityError(error)) {
+      return fallbackRuntime
+    }
+
+    throw error
+  }
+}
+
 export async function runSecretaryTurn(params: {
   supabase: SupabaseClient
   userId: string
@@ -1542,7 +1581,7 @@ export async function runSecretaryTurn(params: {
     })
 
     if (toolUses.length === 0) {
-      runtime = await loadAssistantRuntimeContext(params.supabase, params.userId)
+      runtime = await refreshAssistantRuntimeContext(params.supabase, params.userId, runtime)
 
       return assistantMessageResponseSchema.parse({
         ok: true,
@@ -1575,7 +1614,7 @@ export async function runSecretaryTurn(params: {
 
       if (result.mutated) {
         needsRefresh = true
-        runtime = await loadAssistantRuntimeContext(params.supabase, params.userId)
+        runtime = await refreshAssistantRuntimeContext(params.supabase, params.userId, runtime)
       }
 
       if (result.clarification && !clarification) {
@@ -1595,7 +1634,7 @@ export async function runSecretaryTurn(params: {
     })
   }
 
-  runtime = await loadAssistantRuntimeContext(params.supabase, params.userId)
+  runtime = await refreshAssistantRuntimeContext(params.supabase, params.userId, runtime)
 
   return assistantMessageResponseSchema.parse({
     ok: false,

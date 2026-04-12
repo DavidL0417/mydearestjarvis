@@ -10,10 +10,6 @@ import {
   isAuthenticationRequiredError,
   requireAuthenticatedUser,
 } from "@/lib/supabase/auth"
-import {
-  getMissingUserCalendarsTableHint,
-  isMissingUserCalendarsTableError,
-} from "@/lib/tasks-calendar"
 import { assistantMessageRequestSchema, assistantMessageResponseSchema } from "@/schemas/assistant"
 
 export async function POST(request: Request) {
@@ -63,21 +59,6 @@ export async function POST(request: Request) {
           context: buildFallbackAssistantContextData(),
         },
         { status: 401 },
-      )
-    }
-
-    if (isMissingUserCalendarsTableError(error)) {
-      return NextResponse.json(
-        assistantMessageResponseSchema.parse({
-          ok: true,
-          reply:
-            "Calendar registry setup is still pending in the live Supabase project. I can stay in fallback mode for now, but full calendar management will need the latest schema applied.",
-          toolCalls: [],
-          needsRefresh: false,
-          clarification: null,
-          context: buildFallbackAssistantContextData(),
-          error: getMissingUserCalendarsTableHint(),
-        }),
       )
     }
 

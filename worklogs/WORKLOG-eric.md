@@ -2,6 +2,75 @@
 
 ## Log
 
+### 2026-04-12 10:18 CDT
+
+- Fixed the “assistant says created, but schedule does not update” regression in [`lib/data/mappers.ts`](./../lib/data/mappers.ts): legacy `schedule_events` rows without `is_checked_in` now default `isCheckedIn` to `false` instead of producing an invalid dashboard payload during the post-create refresh.
+- Fixed the empty calendar drawer and broadened calendar surfacing in [`lib/tasks-calendar.ts`](./../lib/tasks-calendar.ts) and [`schemas/common.ts`](./../schemas/common.ts): fallback/synthetic calendar entries are now valid app responses, and `/api/calendars` now merges connected Google calendars into the sidebar list even when `public.user_calendars` is missing or incomplete.
+- Root cause chain: assistant event creation could succeed, but the immediate `/api/dashboard` reload could fail on legacy event rows, while `/api/calendars` was schema-rejecting non-DB fallback calendars because `userCalendarSchema` still required a UUID `id`.
+- Status: `pnpm exec tsc --noEmit --incremental false` passes and `pnpm build` passes after the dashboard-refresh + calendar-sidebar fix.
+- Next step: refresh the signed-in dashboard, retry the same event creation, and reopen the calendar drawer to confirm the new event appears in the schedule and the connected Google calendars are listed.
+
+### 2026-04-12 10:13 CDT
+
+- Fixed the actual remaining assistant schedule-event compat bug in [`lib/supabase/schema-compat.ts`](./../lib/supabase/schema-compat.ts): the legacy-column matcher was reading Supabase mutation errors with `String(error)`, so plain PostgREST error objects became `"[object Object]"` and the retry path never ran.
+- Added the same message-extraction hardening to [`lib/tasks-calendar.ts`](./../lib/tasks-calendar.ts) so missing-`user_calendars` fallback detection also works reliably against raw Supabase error objects.
+- Root cause confirmation: the create-event assistant path already called the compat wrapper, but the wrapper was failing to recognize `column schedule_events.priority does not exist`, so the raw DB error bubbled back into Master Input.
+- Status: `pnpm exec tsc --noEmit --incremental false` passes and `pnpm build` passes after the matcher fix.
+- Next step: restart or refresh the dev app and retry the same create-event prompt; it should now retry the legacy insert/update path instead of surfacing the raw missing-column error.
+
+### 2026-04-12 10:13 CDT
+
+- Fixed the follow-on hydration mismatch in [`components/dashboard/master-input.tsx`](./../components/dashboard/master-input.tsx): kept the intro transcript entry deterministic with a stable static id, and reverted the incidental copy-only intro/placeholder edits that had drifted during the schema-warning fix.
+- Root cause: the actual functional fix was safe, but the concurrent dev snapshot ended up with server HTML using the older intro copy while the client bundle had the newer copy, which forced a React hydration reset in the left rail.
+- Status: `pnpm exec tsc --noEmit --incremental false` passes after the hydration cleanup.
+- Next step: hard refresh or restart `pnpm dev` so Next rebuilds the server/client pair from the same `MasterInput` source and clears the stale overlay.
+
+### 2026-04-12 10:09 CDT
+
+- Fixed the Master Input schema-warning regression across [`lib/assistant/secretary.ts`](./../lib/assistant/secretary.ts), [`app/api/assistant/message/route.ts`](./../app/api/assistant/message/route.ts), and [`components/dashboard/master-input.tsx`](./../components/dashboard/master-input.tsx): legacy `schedule_events` schema drift no longer replaces a successful assistant action with the fallback warning bubble.
+- The secretary now keeps the last good runtime context if a post-mutation refresh hits the old optional schedule-event columns, and the message route no longer returns schema-compat advisories as if they were the assistant's actual reply.
+- Hardened the transcript renderer so red inline error text only appears for failed assistant responses, not successful responses that happen to carry backend metadata.
+- Status: `pnpm exec tsc --noEmit --incremental false` passes and `pnpm build` passes after the assistant chat fix.
+- Next step: refresh the signed-in dashboard and retry a plain event creation in Master Input to confirm the chat now returns the real action result instead of the schema warning.
+
+### 2026-04-12 10:18 CDT
+
+- Replaced the app’s Google event sync dependency on the browser session token with a server route at [`app/api/google-calendar/events/route.ts`](./../app/api/google-calendar/events/route.ts) that uses the authenticated user’s stored `user_integrations` token instead.
+- This was the next targeted fix for the “all-day only” dashboard symptom: the stored integration token path is the one already verified against David’s real timed Northwestern / Academia / personal calendars, so the app now reads Google events through the same proven server-side credential path.
+- Updated [`lib/supabase/auth-actions.ts`](./../lib/supabase/auth-actions.ts) so the schedule UI fetches `/api/google-calendar/events` instead of querying Google directly from the browser.
+- Status: `pnpm exec tsc --noEmit --incremental false` passes and `pnpm build` passes after adding the server-side Google events route.
+- Next step: refresh the app and click `Sync with Google` again; if timed events still do not render, inspect the returned `/api/google-calendar/events` payload in the browser network panel to compare the server response against the rendered week view.
+
+### 2026-04-12 10:05 CDT
+
+- Hardened [`app/api/assistant/context/route.ts`](./../app/api/assistant/context/route.ts) so schedule-event schema drift now degrades to fallback assistant context instead of returning `ok: false` with the raw `column schedule_events.priority does not exist` error into Master Input.
+- Root cause confirmation: the red left-rail error was specifically the assistant context fetch leaking a backend schema mismatch through the UI, even after the schedule view itself had started rendering Google events again.
+- Status: `pnpm exec tsc --noEmit --incremental false` passes and `pnpm build` passes after the assistant-context fallback patch.
+- Next step: full page refresh so the client refetches `/api/assistant/context`; after that, any remaining issue should be about missing schema-backed features rather than the raw sidebar error itself.
+
+### 2026-04-12 09:56 CDT
+
+- Confirmed the live `public.schedule_events` table is older than expected by more than one column: besides `priority`, it is also missing `gcal_event_id`, `last_synced_from`, and `is_checked_in`.
+- Expanded the schedule-event compatibility layer accordingly so assistant context, secretary mutations, scheduler persistence, and related event updates can fall back to the legacy column set instead of surfacing raw DB column errors.
+- Fixed a separate Google-sync rendering bug in the schedule UI: client-fetched Google events from calendars not present in `user_calendars` were passing the visibility filter but rendering with no fallback colors, which made timed events effectively invisible even after a successful fetch.
+- Verified live Google data for David’s account is available: 7 calendars are readable and the current April 12-18 week includes multiple timed events, so the schedule should now show more than the all-day holiday row after refresh/sync.
+- Status: `pnpm exec tsc --noEmit --incremental false` passes and `pnpm build` passes after the broader schema compat + Google event rendering fix.
+
+### 2026-04-12 09:41 CDT
+
+- Extended the `schedule_events.priority` schema-compat layer to writes, not just reads: secretary task/event mutations, `/api/schedule` persistence, and check-in approval updates now retry without the `priority` column when the live Supabase schema is still old.
+- Fixed signed-in Google calendar visibility on the dashboard: the transitional client sync now pulls events from every Google calendar in the account instead of just `primary`, and the schedule view no longer filters those Google events out when `public.user_calendars` is missing.
+- Added a temporary assistant fallback message for the missing `schedule_events.priority` column so any remaining old-schema path reports a concrete migration issue instead of a raw DB error.
+- Status: `pnpm exec tsc --noEmit --incremental false` passes and `pnpm build` passes after the compat + Google calendar display patch.
+- Next step: refresh the signed-in dashboard, re-run Google sync, and then apply the latest `sql/schema.sql` so the fallback logic can eventually be removed.
+
+### 2026-04-12 09:22 CDT
+
+- Hardened the Google auth callback in [`app/auth/callback/route.ts`](./../app/auth/callback/route.ts): after `exchangeCodeForSession()` succeeds, profile/integration/task-calendar bootstrap now runs in a guarded block instead of throwing a raw HTTP 500 back to Google consent.
+- Verified the live Supabase project still has schema drift: `public.user_calendars` is missing and `public.schedule_events.priority` is missing, while `public.user_integrations` exists. This explains why OAuth-follow-up bootstrap can fail even though the session exchange itself succeeds.
+- Status: `pnpm exec tsc --noEmit --incremental false` passes and `pnpm build` passes; Google sign-in should now complete the session redirect instead of dying on callback bootstrap.
+- Next step: apply the latest `sql/schema.sql` to Supabase so calendar registry + schedule priority stop relying on compatibility/fallback paths.
+
 ### 2026-04-12 08:45 CDT
 
 - Fixed the production build regression on `main`: client code was importing `TASKS_CALENDAR_*` from [`lib/tasks-calendar.ts`](./../lib/tasks-calendar.ts), which now depends on the server-only Supabase helper and pulled `next/headers` into the client bundle.

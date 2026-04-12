@@ -10,6 +10,10 @@ import {
   requireAuthenticatedUser,
 } from "@/lib/supabase/auth"
 import {
+  getMissingScheduleEventPriorityHint,
+  isMissingScheduleEventPriorityError,
+} from "@/lib/supabase/schema-compat"
+import {
   getMissingUserCalendarsTableHint,
   isMissingUserCalendarsTableError,
 } from "@/lib/tasks-calendar"
@@ -44,6 +48,16 @@ export async function GET() {
           ok: true,
           context: buildFallbackAssistantContextData(),
           error: getMissingUserCalendarsTableHint(),
+        }),
+      )
+    }
+
+    if (isMissingScheduleEventPriorityError(error)) {
+      return NextResponse.json(
+        assistantContextResponseSchema.parse({
+          ok: true,
+          context: buildFallbackAssistantContextData(),
+          error: getMissingScheduleEventPriorityHint(),
         }),
       )
     }

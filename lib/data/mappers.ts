@@ -328,7 +328,7 @@ export function mapScheduleEventRowToScheduleEvent(row: ScheduleEventRow): Sched
     gcalEventId: normalizeNullableText(row.gcal_event_id),
     lastSyncedFrom: normalizeSyncOrigin(row.last_synced_from),
     isImmutable: row.is_immutable,
-    isCheckedIn: row.is_checked_in,
+    isCheckedIn: row.is_checked_in ?? false,
     allDay: row.all_day,
     calendarId: normalizeNullableText(row.calendar_id),
   }

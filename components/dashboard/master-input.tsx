@@ -114,7 +114,7 @@ export function MasterInput() {
   const [context, setContext] = useState<AssistantContextResponse["context"] | null>(null)
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([
     {
-      id: crypto.randomUUID(),
+      id: "assistant-intro",
       role: "assistant",
       text: "Secretary console ready. Tell me what to add, move, delete, remember, or replan.",
     },
@@ -256,7 +256,7 @@ export function MasterInput() {
           text: result.reply,
           toolCalls: result.toolCalls,
           clarification: result.clarification,
-          error: result.error ?? null,
+          error: result.ok ? null : result.error ?? null,
         },
       ])
 
@@ -305,7 +305,7 @@ export function MasterInput() {
           <div>
             <CardTitle className="text-sm font-bold text-foreground">Master Input</CardTitle>
             <CardDescription className="mt-1 text-xs text-muted-foreground font-medium leading-tight">
-              Secretary console. Speak naturally and I&apos;ll act on tasks, events, memory, and availability.
+              JARVIS plans to-dos according to natural-language input, just like a secretary.
             </CardDescription>
           </div>
           <div className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">

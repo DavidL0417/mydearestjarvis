@@ -2,21 +2,17 @@
 
 import type { ReactNode } from "react"
 import { Button } from "@/components/ui/button"
-import { Sidebar, Shield, Check, Menu, Book } from "lucide-react"
+import { Shield, Check, Menu, Book } from "lucide-react"
 
 interface DashboardHeaderProps {
-  onTogglePanels?: () => void
   onToggleMobileMenu?: () => void
   onOpenCalendars?: () => void
-  panelsHidden?: boolean
   authControls?: ReactNode
 }
 
 export function DashboardHeader({ 
-  onTogglePanels, 
   onToggleMobileMenu, 
   onOpenCalendars,
-  panelsHidden,
   authControls,
 }: DashboardHeaderProps) {
   return (
@@ -31,15 +27,6 @@ export function DashboardHeader({
           className="md:hidden text-muted-foreground hover:text-foreground hover:bg-secondary p-2"
         >
           <Menu className="w-5 h-5" />
-        </Button>
-        {/* Desktop sidebar toggle */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onTogglePanels}
-          className="hidden md:flex text-muted-foreground hover:text-foreground hover:bg-secondary p-2"
-        >
-          <Sidebar className="w-5 h-5" />
         </Button>
         {/* Book icon for calendars sidebar */}
         <Button
@@ -64,9 +51,7 @@ export function DashboardHeader({
             <Shield className="h-4 w-4 text-emerald-300" />
             <span className="text-xs font-semibold text-emerald-100">Safety</span>
             <Check className="h-4 w-4 text-emerald-300" />
-            <span className="text-xs font-semibold text-emerald-200">
-              {panelsHidden ? "Schedule focus" : "Ready"}
-            </span>
+            <span className="text-xs font-semibold text-emerald-200">Ready</span>
           </div>
         </div>
       </div>

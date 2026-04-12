@@ -20,14 +20,14 @@ import {
 } from "@/components/dashboard/calendars-sidebar"
 import { CheckInSidebar } from "@/components/dashboard/checkin-sidebar"
 import { TaskManager } from "@/components/dashboard/task-manager"
-import { TaskSidebar } from "@/components/dashboard/task-sidebar"
-import { TASKS_CALENDAR_ID } from "@/lib/task-calendar-constants"
 import { X, Book } from "lucide-react"
 // ##### BACKEND API #####
 // DO NOT MODIFY UNLESS BACKEND OWNER
 import { getCalendarsData } from "@/lib/data/calendars"
 import { getPendingCheckInApprovals } from "@/lib/data/checkins"
 import { getDashboardData } from "@/lib/data/dashboard"
+import { getSeedDemoTasksData } from "@/lib/data/seed-demo-tasks"
+import type { SeedDemoTask } from "@/lib/seed-demo-tasks"
 import type {
   CheckInApprovalItem,
   CreateTaskRequest,
@@ -230,7 +230,6 @@ function FocusQueueCard({
 }
 
 export default function DashboardPage() {
-  const [rightColumnOpen, setRightColumnOpen] = useState(true)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [mobileSection, setMobileSection] = useState<MobileSection>("schedule")
   const [activePanelTab, setActivePanelTab] = useState<PanelTabId>("focus")
@@ -243,6 +242,7 @@ export default function DashboardPage() {
   
   // Task management state
   const [tasks, setTasks] = useState<Task[]>([])
+  const [seedDemoTasks, setSeedDemoTasks] = useState<SeedDemoTask[]>([])
   const [taskErrorMessage, setTaskErrorMessage] = useState("")
 
   // ##### BACKEND API #####
@@ -276,16 +276,10 @@ export default function DashboardPage() {
     () => pendingCheckInItems.map((item) => item.event),
     [pendingCheckInItems],
   )
-  const calendarRegistryNeedsSchema = useMemo(
-    () => calendars.some((calendar) => calendar.source === "task" && !calendar.recordId),
-    [calendars],
-  )
-  
   // Get the active calendar object
   const activeCalendar = activeCalendarId 
     ? calendars.find(cal => cal.id === activeCalendarId) || null 
     : null
-  const isTaskCalendarActive = activeCalendar?.id === TASKS_CALENDAR_ID
 
   const handleOpenCalendarsSidebar = () => {
     setCalendarsSidebarOpen(true)
@@ -294,10 +288,11 @@ export default function DashboardPage() {
   // ##### BACKEND API #####
   // DO NOT MODIFY UNLESS BACKEND OWNER
   const loadDashboard = useCallback(async () => {
-    const [data, calendarData, checkInData] = await Promise.all([
+    const [data, calendarData, checkInData, demoTasks] = await Promise.all([
       getDashboardData(),
       getCalendarsData(),
       getPendingCheckInApprovals(),
+      getSeedDemoTasksData(),
     ])
 
     if (!data) {
@@ -305,15 +300,16 @@ export default function DashboardPage() {
       setCalendars([])
       setPendingCheckInItems([])
       setTasks([])
+      setSeedDemoTasks([])
       setScheduledOverlayEvents([])
       setPlannerStatus("Not scheduled")
       setPlannerSummary("")
       return
     }
 
-    console.log("Loaded dashboard data", data)
     setDashboardData(data)
     setTasks(data.tasks)
+    setSeedDemoTasks(demoTasks)
     setScheduledOverlayEvents([])
     setPendingCheckInItems(checkInData ?? [])
 
@@ -326,10 +322,11 @@ export default function DashboardPage() {
     let isActive = true
 
     const loadDashboardSafely = async () => {
-      const [data, calendarData, checkInData] = await Promise.all([
+      const [data, calendarData, checkInData, demoTasks] = await Promise.all([
         getDashboardData(),
         getCalendarsData(),
         getPendingCheckInApprovals(),
+        getSeedDemoTasksData(),
       ])
 
       if (!isActive) {
@@ -341,15 +338,16 @@ export default function DashboardPage() {
         setCalendars([])
         setPendingCheckInItems([])
         setTasks([])
+        setSeedDemoTasks([])
         setScheduledOverlayEvents([])
         setPlannerStatus("Not scheduled")
         setPlannerSummary("")
         return
       }
 
-      console.log("Loaded dashboard data", data)
       setDashboardData(data)
       setTasks(data.tasks)
+      setSeedDemoTasks(demoTasks)
       setScheduledOverlayEvents([])
       setPendingCheckInItems(checkInData ?? [])
 
@@ -566,10 +564,6 @@ export default function DashboardPage() {
       setIsScheduling(false)
     }
   }
-
-  const handleScheduleTask = async (taskId: string) => {
-    await handleSchedule([taskId])
-  }
   // ##### END BACKEND #####
 
   const handleEventApproved = useCallback((approvedEvent: ScheduleEvent) => {
@@ -641,61 +635,42 @@ export default function DashboardPage() {
     }
 
     if (activePanelTab === "status") {
-      return <StatusPanel stats={dashboardData?.stats} />
+      return (
+        <div className="space-y-3">
+          <StatusPanel stats={dashboardData?.stats} />
+          {pendingCheckInEvents.length > 0 ? (
+            <CheckInSidebar
+              events={pendingCheckInEvents}
+              calendars={calendars}
+              onEventApproved={handleEventApproved}
+            />
+          ) : null}
+          {activeCalendar ? (
+            <TaskManager
+              mode="calendar"
+              calendar={activeCalendar}
+              calendars={calendars}
+              tasks={tasks}
+              errorMessage={taskErrorMessage}
+              onClearError={clearTaskError}
+              onCreateTask={handleCreateTask}
+              onUpdateTask={handleUpdateTask}
+              onDeleteTask={handleDeleteTask}
+            />
+          ) : null}
+        </div>
+      )
     }
 
     return (
       <>
-        <WhatToDoNow currentTask={dashboardData?.currentTask} />
-      </>
-    )
-  }
-
-  const renderContextSidebar = () => {
-    if (activeCalendar) {
-      if (isTaskCalendarActive) {
-        return (
-          <TaskSidebar
-            tasks={tasks}
-            scheduleEvents={mergedScheduleEvents}
-            errorMessage={taskErrorMessage}
-            onClearError={clearTaskError}
-            onCreateTask={handleCreateTask}
-            onUpdateTask={handleUpdateTask}
-            onDeleteTask={handleDeleteTask}
-            onScheduleTask={handleScheduleTask}
-          />
-        )
-      }
-
-      return (
-        <TaskManager
-          mode="calendar"
-          calendar={activeCalendar}
-          calendars={calendars}
-          tasks={tasks}
-          errorMessage={taskErrorMessage}
-          onClearError={clearTaskError}
-          onCreateTask={handleCreateTask}
-          onUpdateTask={handleUpdateTask}
-          onDeleteTask={handleDeleteTask}
-        />
-      )
-    }
-
-    return <StatusPanel stats={dashboardData?.stats} />
-  }
-
-  const renderRightPanelContent = () => {
-    return (
-      <div className="space-y-3">
         <CheckInSidebar
           events={pendingCheckInEvents}
           calendars={calendars}
           onEventApproved={handleEventApproved}
         />
-        {renderContextSidebar()}
-      </div>
+        <WhatToDoNow currentTask={dashboardData?.currentTask} />
+      </>
     )
   }
 
@@ -704,10 +679,8 @@ export default function DashboardPage() {
       <div className="max-w-[1600px] mx-auto h-full flex flex-col">
         {/* Header */}
         <DashboardHeader 
-          onTogglePanels={() => setRightColumnOpen((current) => !current)} 
           onToggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)}
           onOpenCalendars={handleOpenCalendarsSidebar}
-          panelsHidden={!rightColumnOpen}
           authControls={<AuthControls />}
         />
 
@@ -721,12 +694,6 @@ export default function DashboardPage() {
           activeCalendarId={activeCalendarId}
         />
 
-        {calendarRegistryNeedsSchema ? (
-          <div className="mb-3 rounded-[20px] border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs font-medium text-amber-100">
-            Calendar registry fallback is active. The live Supabase project is missing `public.user_calendars`, so tasks and assistant flows still work, but full calendar management needs `sql/schema.sql` applied.
-          </div>
-        ) : null}
-        
         {/* Mobile Navigation Menu */}
         {mobileMenuOpen && (
           <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-xl md:hidden">
@@ -766,21 +733,6 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
-
-        {/* Hide Panels Toggle - Desktop only */}
-        <div className="mb-3 hidden items-center gap-3 rounded-[20px] border border-white/8 bg-white/[0.03] px-3 py-2 md:flex">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setRightColumnOpen((current) => !current)}
-            className="text-muted-foreground hover:text-foreground hover:bg-secondary text-xs h-7 font-semibold"
-          >
-            {rightColumnOpen ? "Hide Right Column" : "Open Right Column"}
-          </Button>
-          <span className="text-xs text-muted-foreground font-medium">
-            Master input stays pinned on the left. Keep the right column open for task and status detail.
-          </span>
-        </div>
 
         {/* Mobile Section Navigation */}
         <div className="mb-3 flex gap-1 rounded-2xl border border-white/8 bg-white/[0.04] p-1 md:hidden">
@@ -830,6 +782,7 @@ export default function DashboardPage() {
                 calendars={calendars}
                 events={mergedScheduleEvents}
                 tasks={tasks}
+                seedTasks={seedDemoTasks}
                 plannerStatus={plannerStatus}
                 plannerSummary={plannerSummary}
                 onSchedule={handleSchedule}
@@ -838,18 +791,25 @@ export default function DashboardPage() {
             </div>
           )}
           {mobileSection === "status" && (
-            <div className="space-y-3">{renderRightPanelContent()}</div>
+            <div className="space-y-3">
+              <StatusPanel stats={dashboardData?.stats} />
+              <CheckInSidebar
+                events={pendingCheckInEvents}
+                calendars={calendars}
+                onEventApproved={handleEventApproved}
+              />
+            </div>
           )}
         </div>
 
-        {/* Desktop Main Content Grid - iCal compact style, fit to screen */}
+        {/* Desktop Main Content Grid - two-panel layout with task popover */}
         <div className="hidden md:block flex-1 overflow-hidden">
           <ResizablePanelGroup
             direction="horizontal"
-            autoSaveId={rightColumnOpen ? "dashboard-panels-with-right" : "dashboard-panels-main"}
+            autoSaveId="dashboard-panels-main"
             className="h-full w-full gap-3"
           >
-            <ResizablePanel defaultSize={30} minSize={22} maxSize={42}>
+            <ResizablePanel defaultSize={34} minSize={24} maxSize={44}>
               <div className="h-full overflow-auto pr-1">
                 <div className="flex flex-col gap-3">
                   <MasterInput />
@@ -862,13 +822,14 @@ export default function DashboardPage() {
 
             <ResizableHandle withHandle className="mx-1" />
 
-            <ResizablePanel defaultSize={rightColumnOpen ? 50 : 70} minSize={34}>
+            <ResizablePanel defaultSize={66} minSize={40}>
               <div className="h-full overflow-hidden">
                 <ScheduleView 
                   visibleCalendarIds={visibleCalendarIds}
                   calendars={calendars}
                   events={mergedScheduleEvents}
                   tasks={tasks}
+                  seedTasks={seedDemoTasks}
                   plannerStatus={plannerStatus}
                   plannerSummary={plannerSummary}
                   onSchedule={handleSchedule}
@@ -876,17 +837,6 @@ export default function DashboardPage() {
                 />
               </div>
             </ResizablePanel>
-
-            {rightColumnOpen && (
-              <>
-                <ResizableHandle withHandle className="mx-1" />
-                <ResizablePanel defaultSize={20} minSize={18} maxSize={28}>
-                  <div className="h-full overflow-auto pl-1">
-                    {renderRightPanelContent()}
-                  </div>
-                </ResizablePanel>
-              </>
-            )}
           </ResizablePanelGroup>
         </div>
       </div>

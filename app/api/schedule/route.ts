@@ -13,6 +13,7 @@ import {
   isAuthenticationRequiredError,
   requireAuthenticatedUser,
 } from "@/lib/supabase/auth"
+import { runScheduleEventMutationWithCompat } from "@/lib/supabase/schema-compat"
 import { TASKS_CALENDAR_ID } from "@/lib/task-calendar-constants"
 import {
   schedulePlanResultSchema,
@@ -89,9 +90,13 @@ async function persistSchedulePlan(
   }))
 
   if (rowsToUpsert.length > 0) {
-    const { error } = await adminClient
-      .from("schedule_events")
-      .upsert(rowsToUpsert, { onConflict: "user_id,task_id,source" })
+    const { error } = await runScheduleEventMutationWithCompat(
+      rowsToUpsert,
+      async (payload) =>
+        await adminClient
+          .from("schedule_events")
+          .upsert(payload, { onConflict: "user_id,task_id,source" }),
+    )
 
     if (error) {
       throw new Error(error.message)

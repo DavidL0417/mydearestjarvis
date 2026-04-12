@@ -1,6 +1,6 @@
 # JARVIS (Just A Rather Very Intelligent Scheduler)
 JARVIS: the first scheduler that automatically rebuilds your day when life happens.
-An intelligent, behavior-aware scheduling assistant that adapts to real life by automatically updating your calendar when plans change.
+Talk in natural language to an intelligent, behavior-aware personal secretary that adapts to real life by automatically creating tasks, surfacing relevant to-dos, and adapting instantly to real life.
 
 ---
 
@@ -9,7 +9,7 @@ An intelligent, behavior-aware scheduling assistant that adapts to real life by 
 JARVIS is an AI-powered scheduler that:
 
 - Learns how you actually work, including habits, energy levels, and tendencies
-- Creates realistic schedules based on your constraints
+- Creates realistic schedules based on constraints (existing events, deadlines, priorities, user preferences, etc.)
 - Continuously adapts when tasks are missed or disruptions occur
 - Automatically updates your Google Calendar in real time
 
