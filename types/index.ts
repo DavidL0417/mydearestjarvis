@@ -50,6 +50,7 @@ export interface TaskRow {
   created_at: string
   updated_at: string
   is_immutable: boolean
+  all_day: boolean
   calendar_id: string | null
   tags: string[]
 }
@@ -68,6 +69,7 @@ export interface ScheduleEventRow {
   created_at: string
   updated_at: string
   is_immutable: boolean
+  all_day: boolean
   calendar_id: string | null
 }
 
@@ -127,6 +129,7 @@ export interface Task {
   status: TaskStatus
   scheduledFor: string | null
   isImmutable: boolean
+  allDay: boolean
   calendarId: string | null
   // `tags` is now persisted in Supabase on `public.tasks.tags`.
   // SQL rows use snake_case, while app-facing task objects use camelCase through the mapper layer.
@@ -145,6 +148,7 @@ export interface ScheduleEvent {
   location: string | null
   externalEventId: string | null
   isImmutable: boolean
+  allDay: boolean
   calendarId: string | null
 }
 
@@ -187,8 +191,8 @@ export interface DashboardCurrentTask {
 export interface DashboardResponse {
   stats: DashboardStats
   currentTask: DashboardCurrentTask | null
-  events: ScheduleEvent[]
   tasks: Task[]
+  events: ScheduleEvent[]
 }
 
 export interface CreateTaskRequest {
@@ -199,6 +203,7 @@ export interface CreateTaskRequest {
   priority?: Priority
   status?: TaskStatus
   isImmutable?: boolean
+  allDay?: boolean
   calendarId?: string | null
   tags?: string[]
   scheduledFor?: string | null
@@ -212,6 +217,7 @@ export interface UpdateTaskRequest {
   priority?: Priority
   status?: TaskStatus
   isImmutable?: boolean
+  allDay?: boolean
   calendarId?: string | null
   tags?: string[]
   scheduledFor?: string | null
@@ -249,6 +255,7 @@ export interface OnboardingTaskInput {
   priority?: Priority
   status?: TaskStatus
   isImmutable?: boolean
+  allDay?: boolean
   calendarId?: string | null
   tags?: string[]
 }
@@ -280,6 +287,7 @@ export interface ScheduleEventInput {
   location?: string | null
   externalEventId?: string | null
   isImmutable?: boolean
+  allDay?: boolean
   calendarId?: string | null
 }
 

@@ -49,6 +49,8 @@ const CALENDAR_DEFAULTS: Record<string, { name: string; color: string; source: C
 
 const DEFAULT_BACKEND_CALENDAR_ID = "calendar-main"
 const FALLBACK_USER_ID = "00000000-0000-4000-8000-000000000000"
+const DEFAULT_TASK_CALENDAR_ID = "cal-tasks"
+const DASHBOARD_REFRESH_EVENT = "jarvis-dashboard-refresh"
 
 function getDisplayCalendarId(calendarId: string | null | undefined) {
   return calendarId || DEFAULT_BACKEND_CALENDAR_ID
@@ -112,6 +114,7 @@ function toScheduleEventInput(event: ScheduleEvent): ScheduleEventInput {
     location: event.location,
     externalEventId: event.externalEventId,
     isImmutable: event.isImmutable,
+    allDay: event.allDay,
     calendarId: event.calendarId,
   }
 }
@@ -145,6 +148,7 @@ function buildOptimisticTask(userId: string, input: CreateTaskRequest): Task {
     status: input.status ?? "todo",
     scheduledFor: input.scheduledFor ?? null,
     isImmutable: input.isImmutable ?? false,
+    allDay: input.allDay ?? false,
     calendarId: input.calendarId ?? null,
     tags: input.tags ?? [],
   }
@@ -167,6 +171,7 @@ function mergeTaskUpdate(task: Task, update: UpdateTaskRequest): Task {
           ? null
           : task.scheduledFor,
     isImmutable: update.isImmutable ?? task.isImmutable,
+    allDay: update.allDay ?? task.allDay,
     calendarId: update.calendarId !== undefined ? update.calendarId : task.calendarId,
     tags: update.tags ?? task.tags,
   }
@@ -290,7 +295,7 @@ export default function DashboardPage() {
   useEffect(() => {
     let isActive = true
 
-    async function loadDashboard() {
+    const loadDashboard = async () => {
       const data = await getDashboardData()
 
       if (!isActive || !data) {
@@ -302,10 +307,16 @@ export default function DashboardPage() {
       setTasks(data.tasks)
     }
 
-    loadDashboard()
+    const handleDashboardRefresh = () => {
+      void loadDashboard()
+    }
+
+    void loadDashboard()
+    window.addEventListener(DASHBOARD_REFRESH_EVENT, handleDashboardRefresh)
 
     return () => {
       isActive = false
+      window.removeEventListener(DASHBOARD_REFRESH_EVENT, handleDashboardRefresh)
     }
   }, [])
 
@@ -694,6 +705,7 @@ export default function DashboardPage() {
                 visibleCalendarIds={visibleCalendarIds}
                 calendars={calendars}
                 events={mergedScheduleEvents}
+                tasks={tasks}
                 plannerStatus={plannerStatus}
                 plannerSummary={plannerSummary}
                 onSchedule={handleSchedule}
@@ -740,6 +752,7 @@ export default function DashboardPage() {
               visibleCalendarIds={visibleCalendarIds}
               calendars={calendars}
               events={mergedScheduleEvents}
+              tasks={tasks}
               plannerStatus={plannerStatus}
               plannerSummary={plannerSummary}
               onSchedule={handleSchedule}

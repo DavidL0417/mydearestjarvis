@@ -45,6 +45,7 @@ create table if not exists public.tasks (
   priority text not null default 'medium' check (priority in ('low', 'medium', 'high')),
   status text not null default 'todo' check (status in ('todo', 'scheduled', 'completed', 'missed')),
   is_immutable boolean not null default false,
+  all_day boolean not null default false,
   calendar_id text,
   tags text[] not null default '{}'::text[],
   scheduled_for timestamptz,
@@ -55,7 +56,8 @@ create table if not exists public.tasks (
 comment on table public.tasks is 'Core task backlog used for dashboard stats and future scheduling.';
 
 alter table public.tasks
-  add column if not exists tags text[] not null default '{}'::text[];
+  add column if not exists tags text[] not null default '{}'::text[],
+  add column if not exists all_day boolean not null default false;
 
 create table if not exists public.schedule_events (
   id uuid primary key default gen_random_uuid(),
@@ -67,6 +69,7 @@ create table if not exists public.schedule_events (
   source text not null default 'task' check (source in ('task', 'calendar', 'focus')),
   status text check (status in ('todo', 'scheduled', 'completed', 'missed')),
   is_immutable boolean not null default false,
+  all_day boolean not null default false,
   calendar_id text,
   location text,
   external_event_id text,
@@ -74,6 +77,9 @@ create table if not exists public.schedule_events (
   updated_at timestamptz not null default now(),
   check (ends_at > starts_at)
 );
+
+alter table public.schedule_events
+  add column if not exists all_day boolean not null default false;
 
 comment on table public.schedule_events is 'Scheduled task or focus blocks that can later sync to Google Calendar.';
 

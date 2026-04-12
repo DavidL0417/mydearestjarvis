@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     let taskQuery = supabase
       .from("tasks")
       .select(
-        "id, user_id, title, description, deadline, duration_minutes, priority, status, scheduled_for, created_at, updated_at, is_immutable, calendar_id, tags",
+        "id, user_id, title, description, deadline, duration_minutes, priority, status, scheduled_for, created_at, updated_at, is_immutable, all_day, calendar_id, tags",
       )
       .eq("user_id", user.id)
       .order("created_at", { ascending: true })

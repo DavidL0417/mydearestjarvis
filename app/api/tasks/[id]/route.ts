@@ -56,7 +56,7 @@ export async function PATCH(
       .eq("id", parsedTaskId.data)
       .eq("user_id", user.id)
       .select(
-        "id, user_id, title, description, deadline, duration_minutes, priority, status, scheduled_for, created_at, updated_at, is_immutable, calendar_id, tags",
+        "id, user_id, title, description, deadline, duration_minutes, priority, status, scheduled_for, created_at, updated_at, is_immutable, all_day, calendar_id, tags",
       )
       .maybeSingle<TaskRow>()
 

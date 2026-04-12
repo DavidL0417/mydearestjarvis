@@ -12,7 +12,7 @@ import { createPlaceholderCalendarEvents } from "@/lib/mock-calendar-events"
 import { getOrCreateDemoUser } from "@/lib/supabase/demo-user"
 import { createSupabaseAdminClient } from "@/lib/supabase/server"
 import { dashboardResponseSchema } from "@/schemas/dashboard"
-import type { DashboardResponse, Task } from "@/types"
+import type { DashboardResponse, ScheduleEvent, Task } from "@/types"
 
 function pickCurrentTask(tasks: Task[]): DashboardResponse["currentTask"] {
   const scheduledTask = tasks.find((task) => task.status === "scheduled")
@@ -38,6 +38,10 @@ function pickCurrentTask(tasks: Task[]): DashboardResponse["currentTask"] {
   }
 }
 
+function getEventIdentity(event: ScheduleEvent) {
+  return [event.calendarId ?? "", event.title, event.start, event.end, event.location ?? ""].join("::")
+}
+
 export async function GET() {
   try {
     const supabase = createSupabaseAdminClient()
@@ -47,14 +51,14 @@ export async function GET() {
       supabase
         .from("tasks")
         .select(
-          "id, user_id, title, description, deadline, duration_minutes, priority, status, scheduled_for, created_at, updated_at, is_immutable, calendar_id, tags",
+          "id, user_id, title, description, deadline, duration_minutes, priority, status, scheduled_for, created_at, updated_at, is_immutable, all_day, calendar_id, tags",
         )
         .eq("user_id", user.id)
         .order("created_at", { ascending: true }),
       supabase
         .from("schedule_events")
         .select(
-          "id, user_id, task_id, title, starts_at, ends_at, source, status, location, external_event_id, created_at, updated_at, is_immutable, calendar_id",
+          "id, user_id, task_id, title, starts_at, ends_at, source, status, location, external_event_id, created_at, updated_at, is_immutable, all_day, calendar_id",
         )
         .eq("user_id", user.id)
         .order("starts_at", { ascending: true }),
@@ -73,9 +77,11 @@ export async function GET() {
     const tasks = (tasksResult.data || []).map(mapTaskRowToTask)
     const persistedEvents = (eventsResult.data || []).map(mapScheduleEventRowToScheduleEvent)
     const placeholderCalendarEvents = createPlaceholderCalendarEvents(user.id)
-    const events = [...placeholderCalendarEvents, ...persistedEvents.filter((event) => event.source !== "calendar")].sort(
-      (left, right) => new Date(left.start).getTime() - new Date(right.start).getTime(),
-    )
+    const persistedEventKeys = new Set(persistedEvents.map(getEventIdentity))
+    const events = [
+      ...placeholderCalendarEvents.filter((event) => !persistedEventKeys.has(getEventIdentity(event))),
+      ...persistedEvents,
+    ].sort((left, right) => new Date(left.start).getTime() - new Date(right.start).getTime())
     const scheduledTaskIds = new Set(
       (eventsResult.data || [])
         .map((event) => event.task_id)
@@ -110,8 +116,8 @@ export async function GET() {
         checkInMode: getCheckInModeFromCount((checkinsResult.data || []).length),
       },
       currentTask: pickCurrentTask(tasks),
-      events,
       tasks,
+      events,
     }
 
     const parsedPayload = dashboardResponseSchema.safeParse(dashboardPayload)

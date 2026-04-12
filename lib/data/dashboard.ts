@@ -6,7 +6,7 @@ import type { DashboardResponse } from "@/types"
 export async function getDashboardData(): Promise<DashboardResponse | null> {
   try {
     // TODO: If this moves to a server-only call path, switch to an absolute URL or direct data access.
-    const response = await fetch("/api/dashboard")
+    const response = await fetch("/api/dashboard", { cache: "no-store" })
 
     if (!response.ok) {
       console.error(`Dashboard request failed with status ${response.status}`)

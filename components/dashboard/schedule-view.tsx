@@ -8,7 +8,7 @@ import {
   PLACEHOLDER_MONTH_START_LOCAL,
   PLACEHOLDER_SELECTED_DATE_LOCAL,
 } from "@/lib/mock-calendar-events"
-import type { ScheduleEvent } from "@/types"
+import type { ScheduleEvent, Task } from "@/types"
 import type { Calendar } from "./calendars-sidebar"
 
 type ViewMode = "1day" | "3days" | "7days" | "1month"
@@ -19,9 +19,10 @@ export interface CalendarEvent {
   title: string
   start: string // ISO Date string
   end: string // ISO Date string
-  source: "google" | "local"
+  source: "google" | "local" | "task"
   isReadOnly: boolean
   calendarId: string // Links to Calendar.id
+  allDay: boolean
   location?: string
   color: "mint" | "blue" | "yellow" | "orange" | "purple" | "cyan"
   // Derived fields for rendering (calculated from start/end)
@@ -76,7 +77,7 @@ function isSameCalendarDay(left: Date, right: Date) {
 function mapScheduleEventsToCalendarEvents(
   scheduleEvents: ScheduleEvent[],
   displayDates: Date[],
-) {
+): CalendarEvent[] {
   return scheduleEvents.flatMap((event) => {
     const start = new Date(event.start)
     const end = new Date(event.end)
@@ -95,6 +96,7 @@ function mapScheduleEventsToCalendarEvents(
         source: "local" as const,
         isReadOnly: event.isImmutable,
         calendarId: event.calendarId || DEFAULT_BACKEND_CALENDAR_ID,
+        allDay: event.allDay,
         location: event.location || undefined,
         color: getFallbackColor(event.calendarId),
         day,
@@ -105,11 +107,66 @@ function mapScheduleEventsToCalendarEvents(
   })
 }
 
+function mapTasksToCalendarEvents(
+  tasks: Task[],
+  scheduleEvents: ScheduleEvent[],
+  displayDates: Date[],
+): CalendarEvent[] {
+  const scheduledTaskIds = new Set(
+    scheduleEvents
+      .map((event) => event.taskId)
+      .filter((taskId): taskId is string => typeof taskId === "string" && taskId.length > 0),
+  )
+
+  return tasks.flatMap((task) => {
+    if (scheduledTaskIds.has(task.id) || task.status === "completed" || task.status === "missed") {
+      return []
+    }
+
+    const anchor = task.scheduledFor || task.deadline
+
+    if (!anchor) {
+      return []
+    }
+
+    const start = new Date(anchor)
+    const day = displayDates.findIndex((date) => isSameCalendarDay(date, start))
+
+    if (day === -1) {
+      return []
+    }
+
+    const allDay = task.allDay
+    const startHour = allDay ? 0 : start.getHours() + start.getMinutes() / 60
+    const duration = allDay ? 24 : Math.max((task.durationMinutes ?? 60) / 60, 0.25)
+    const end = new Date(start.getTime() + duration * 3_600_000).toISOString()
+
+    return [
+      {
+        id: `task-${task.id}`,
+        title: task.title,
+        start: start.toISOString(),
+        end,
+        source: "task" as const,
+        isReadOnly: task.isImmutable,
+        calendarId: task.calendarId || "cal-tasks",
+        allDay,
+        location: undefined,
+        color: getFallbackColor(task.calendarId || "cal-tasks"),
+        day,
+        startHour,
+        duration,
+      },
+    ]
+  })
+}
+
 interface ScheduleViewProps {
   onSyncWithGoogle?: () => void
   visibleCalendarIds?: string[]
   calendars?: Calendar[]
   events?: ScheduleEvent[]
+  tasks?: Task[]
   plannerStatus?: string
   plannerSummary?: string
   onSchedule?: () => void | Promise<void>
@@ -121,6 +178,7 @@ export function ScheduleView({
   visibleCalendarIds,
   calendars,
   events: scheduleEvents = [],
+  tasks = [],
   plannerStatus = "Not scheduled",
   plannerSummary = "",
   onSchedule,
@@ -250,12 +308,23 @@ export function ScheduleView({
   }, [selectedDate, viewMode])
 
   const events = useMemo(() => {
-    const mappedEvents = mapScheduleEventsToCalendarEvents(scheduleEvents, displayDates)
+    const mappedEvents = [
+      ...mapScheduleEventsToCalendarEvents(scheduleEvents, displayDates),
+      ...mapTasksToCalendarEvents(tasks, scheduleEvents, displayDates),
+    ]
 
     return visibleCalendarIds
       ? mappedEvents.filter((event) => visibleCalendarIds.includes(event.calendarId))
       : mappedEvents
-  }, [displayDates, scheduleEvents, visibleCalendarIds])
+  }, [displayDates, scheduleEvents, tasks, visibleCalendarIds])
+  const allDayEvents = useMemo(
+    () => events.filter((event) => event.allDay),
+    [events],
+  )
+  const timedEvents = useMemo(
+    () => events.filter((event) => !event.allDay),
+    [events],
+  )
 
   // Get day names for the current view
   const getDayHeaders = () => {
@@ -566,6 +635,56 @@ export function ScheduleView({
                 </div>
               ))}
             </div>
+
+            {/* All-day lane */}
+            <div
+              className={`grid gap-px sticky top-12 z-[9] bg-card dark:bg-[#141414] ${
+                viewMode === "1day"
+                  ? "grid-cols-[60px_1fr]"
+                  : viewMode === "3days"
+                  ? "grid-cols-[60px_repeat(3,1fr)]"
+                  : "grid-cols-[60px_repeat(7,1fr)]"
+              }`}
+            >
+              <div className="min-h-9 px-2 py-2 text-[10px] font-semibold text-muted-foreground text-right">
+                All day
+              </div>
+              {displayDates.map((_, dayIndex) => {
+                const dayAllDayEvents = allDayEvents.filter((event) => event.day === dayIndex)
+
+                return (
+                  <div
+                    key={`all-day-${dayIndex}`}
+                    className="min-h-9 border-l border-border dark:border-[#2a2a2a] bg-card dark:bg-[#181818] px-1 py-1"
+                  >
+                    {dayAllDayEvents.length === 0 ? (
+                      <div className="h-6 rounded border border-dashed border-border/50" />
+                    ) : (
+                      <div className="space-y-1">
+                        {dayAllDayEvents.map((event) => (
+                          <div
+                            key={event.id}
+                            className={`rounded px-2 py-1 overflow-hidden ${
+                              calendars ? "" : colorClasses[event.color]
+                            } ${event.isReadOnly ? "opacity-90" : ""}`}
+                            style={calendars ? getEventColorStyle(event) : {}}
+                          >
+                            <p className="text-[10px] font-semibold truncate leading-tight">
+                              {event.title}
+                            </p>
+                            {event.location ? (
+                              <p className="text-[9px] truncate opacity-80 font-medium">
+                                {event.location}
+                              </p>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
             
             {/* Time Grid */}
             <div 
@@ -607,7 +726,7 @@ export function ScheduleView({
                   ))}
 
                   {/* Events */}
-                  {events
+                  {timedEvents
                     .filter((event) => event.day === dayIndex)
                     .map((event) => (
                       <div

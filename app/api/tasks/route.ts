@@ -21,6 +21,7 @@ function buildTaskInsert(input: CreateTaskRequest, userId: string) {
     status: input.status ?? "todo",
     scheduledFor: input.scheduledFor ?? null,
     isImmutable: input.isImmutable ?? false,
+    allDay: input.allDay ?? false,
     calendarId: input.calendarId ?? null,
     tags: input.tags ?? [],
   }
@@ -35,6 +36,7 @@ function buildTaskInsert(input: CreateTaskRequest, userId: string) {
     status: task.status,
     scheduled_for: task.scheduledFor,
     is_immutable: task.isImmutable,
+    all_day: task.allDay,
     calendar_id: task.calendarId,
     tags: task.tags,
   }
@@ -62,7 +64,7 @@ export async function POST(request: Request) {
       .from("tasks")
       .insert(buildTaskInsert(parsedBody.data, user.id))
       .select(
-        "id, user_id, title, description, deadline, duration_minutes, priority, status, scheduled_for, created_at, updated_at, is_immutable, calendar_id, tags",
+        "id, user_id, title, description, deadline, duration_minutes, priority, status, scheduled_for, created_at, updated_at, is_immutable, all_day, calendar_id, tags",
       )
       .single<TaskRow>()
 

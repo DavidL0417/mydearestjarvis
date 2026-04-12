@@ -45,7 +45,7 @@ const plannerToolInputSchema = z.object({
     )
     .default([]),
   unscheduledTaskIds: z.array(z.string().uuid()).default([]),
-  summary: z.string().min(1),
+  summary: z.string().min(1).optional(),
 })
 
 type PlannerToolInput = z.infer<typeof plannerToolInputSchema>
@@ -198,6 +198,7 @@ export async function replanSchedule(input: ReplanRequest) {
       location: event.location ?? null,
       externalEventId: event.externalEventId ?? null,
       isImmutable: event.isImmutable ?? true,
+      allDay: event.allDay ?? false,
       calendarId: event.calendarId ?? null,
     })),
   })
@@ -320,7 +321,7 @@ async function requestClaudeSchedule(client: Anthropic, context: PlanningContext
             },
             summary: { type: "string" },
           },
-          required: ["placements", "unscheduledTaskIds", "summary"],
+          required: ["placements", "unscheduledTaskIds"],
         },
       },
     ],
@@ -340,7 +341,54 @@ async function requestClaudeSchedule(client: Anthropic, context: PlanningContext
     throw new Error("Claude did not return the required schedule planning tool payload.")
   }
 
-  return plannerToolInputSchema.parse(toolUseBlock.input)
+  const toolInput =
+    toolUseBlock.input && typeof toolUseBlock.input === "object" ? toolUseBlock.input : {}
+
+  return plannerToolInputSchema.parse({
+    ...toolInput,
+    summary: getPlannerSummary(toolInput),
+  })
+}
+
+function getPlannerSummary(input: unknown) {
+  if (
+    input &&
+    typeof input === "object" &&
+    "summary" in input &&
+    typeof input.summary === "string" &&
+    input.summary.trim().length > 0
+  ) {
+    return input.summary.trim()
+  }
+
+  const placements =
+    input &&
+    typeof input === "object" &&
+    "placements" in input &&
+    Array.isArray(input.placements)
+      ? input.placements.length
+      : 0
+  const unscheduled =
+    input &&
+    typeof input === "object" &&
+    "unscheduledTaskIds" in input &&
+    Array.isArray(input.unscheduledTaskIds)
+      ? input.unscheduledTaskIds.length
+      : 0
+
+  if (placements > 0 && unscheduled > 0) {
+    return `Scheduled ${placements} task${placements === 1 ? "" : "s"} and left ${unscheduled} unscheduled.`
+  }
+
+  if (placements > 0) {
+    return `Scheduled ${placements} task${placements === 1 ? "" : "s"}.`
+  }
+
+  if (unscheduled > 0) {
+    return `No valid placements were found; ${unscheduled} task${unscheduled === 1 ? "" : "s"} remained unscheduled.`
+  }
+
+  return "Claude returned an empty schedule plan."
 }
 
 function buildPromptPayload(context: PlanningContext) {
@@ -421,7 +469,8 @@ function materializeTaskPlacements(
       location: null,
       externalEventId: null,
       isImmutable: task.isImmutable,
-      calendarId: DEFAULT_TASKS_CALENDAR_ID,
+      allDay: task.allDay,
+      calendarId: task.calendarId ?? DEFAULT_TASKS_CALENDAR_ID,
     }
   })
 }
@@ -576,7 +625,8 @@ function taskToFixedEvent(
     location: null,
     externalEventId: null,
     isImmutable: true,
-    calendarId: DEFAULT_TASKS_CALENDAR_ID,
+    allDay: task.allDay,
+    calendarId: task.calendarId ?? DEFAULT_TASKS_CALENDAR_ID,
   }
 }
 
