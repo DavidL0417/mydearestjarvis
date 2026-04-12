@@ -33,6 +33,7 @@ export interface Calendar {
 // API Hook: Replace mockCalendars with useCalendars() hook
 // Example: const { data: calendars, mutate } = useSWR('/api/calendars', fetcher)
 const initialCalendars: Calendar[] = [
+  { id: "cal-tasks", name: "Tasks", color: "#ef4444", isVisible: true, source: "local" },
   { id: "cal-1", name: "Personal", color: "#3b82f6", isVisible: true, source: "local" },
   { id: "cal-2", name: "Work", color: "#4ade80", isVisible: true, source: "google" },
   { id: "cal-3", name: "Northwestern Classes", color: "#fde047", isVisible: true, source: "google" },

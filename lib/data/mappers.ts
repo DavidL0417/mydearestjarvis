@@ -30,6 +30,20 @@ function normalizeNullableText(value: string | null | undefined): string | null 
   return trimmed.length > 0 ? trimmed : null
 }
 
+function normalizeDateTime(value: string | null | undefined): string | null {
+  if (!value) {
+    return null
+  }
+
+  const parsed = new Date(value)
+
+  if (Number.isNaN(parsed.getTime())) {
+    return value
+  }
+
+  return parsed.toISOString()
+}
+
 function normalizeTags(tags: string[] | null | undefined): string[] {
   return Array.from(
     new Set(
@@ -75,11 +89,11 @@ export function mapTaskRowToTask(row: TaskRow): Task {
     userId: row.user_id,
     title: row.title,
     description: normalizeNullableText(row.description),
-    deadline: row.deadline,
+    deadline: normalizeDateTime(row.deadline),
     durationMinutes: row.duration_minutes,
     priority: normalizePriority(row.priority),
     status: normalizeTaskStatus(row.status),
-    scheduledFor: row.scheduled_for,
+    scheduledFor: normalizeDateTime(row.scheduled_for),
     isImmutable: row.is_immutable,
     calendarId: normalizeNullableText(row.calendar_id),
     tags: normalizeTags(row.tags),
@@ -212,8 +226,8 @@ export function mapScheduleEventRowToScheduleEvent(row: ScheduleEventRow): Sched
     userId: row.user_id,
     taskId: row.task_id,
     title: row.title,
-    start: row.starts_at,
-    end: row.ends_at,
+    start: normalizeDateTime(row.starts_at) ?? row.starts_at,
+    end: normalizeDateTime(row.ends_at) ?? row.ends_at,
     source: normalizeEventSource(row.source),
     status: row.status ? normalizeTaskStatus(row.status) : null,
     location: normalizeNullableText(row.location),
@@ -232,8 +246,8 @@ export function mapScheduleEventInputToScheduleEvent(
     userId,
     taskId: event.taskId ?? null,
     title: event.title,
-    start: event.start,
-    end: event.end,
+    start: normalizeDateTime(event.start) ?? event.start,
+    end: normalizeDateTime(event.end) ?? event.end,
     source: normalizeEventSource(event.source),
     status: event.status ?? null,
     location: normalizeNullableText(event.location),

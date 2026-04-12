@@ -1,13 +1,13 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import dynamic from "next/dynamic"
 import { Button } from "@/components/ui/button"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { WorkspaceSnapshot } from "@/components/dashboard/workspace-snapshot"
 import { PanelTabs } from "@/components/dashboard/panel-tabs"
 import { MasterInput } from "@/components/dashboard/master-input"
 import { WhatToDoNow } from "@/components/dashboard/what-to-do-now"
-import { ScheduleView } from "@/components/dashboard/schedule-view"
 import { StatusPanel } from "@/components/dashboard/status-panel"
 import { CalendarsSidebar, initialCalendars, type Calendar } from "@/components/dashboard/calendars-sidebar"
 import { TaskManager, initialTasks, type Task } from "@/components/dashboard/task-manager"
@@ -15,10 +15,111 @@ import { X, Book } from "lucide-react"
 // ##### BACKEND API #####
 // DO NOT MODIFY UNLESS BACKEND OWNER
 import { getDashboardData } from "@/lib/data/dashboard"
-import type { DashboardResponse } from "@/types"
+import type { DashboardResponse, ScheduleEvent, ScheduleEventInput, ScheduleResponse } from "@/types"
 // ##### END BACKEND #####
 
 type MobileSection = "command" | "schedule" | "status"
+type PlannerUiStatus = "Not scheduled" | "Scheduling..." | "Ready" | "Error"
+
+const ScheduleView = dynamic(
+  () => import("@/components/dashboard/schedule-view").then((module) => module.ScheduleView),
+  { ssr: false },
+)
+
+const CALENDAR_DEFAULTS: Record<string, { name: string; color: string; source: Calendar["source"] }> = {
+  "cal-tasks": { name: "Tasks", color: "#ef4444", source: "local" },
+  "calendar-main": { name: "Main", color: "#3b82f6", source: "local" },
+  "calendar-projects": { name: "Projects", color: "#fb923c", source: "local" },
+  "calendar-academics": { name: "Academics", color: "#fde047", source: "local" },
+  "calendar-research": { name: "Research", color: "#c084fc", source: "local" },
+  "calendar-career": { name: "Career", color: "#22d3ee", source: "local" },
+  "calendar-personal": { name: "Personal", color: "#34d399", source: "local" },
+}
+
+const DEFAULT_BACKEND_CALENDAR_ID = "calendar-main"
+
+function getDisplayCalendarId(calendarId: string | null | undefined) {
+  return calendarId || DEFAULT_BACKEND_CALENDAR_ID
+}
+
+function createCalendarFromId(calendarId: string): Calendar {
+  const preset = CALENDAR_DEFAULTS[calendarId]
+
+  if (preset) {
+    return {
+      id: calendarId,
+      name: preset.name,
+      color: preset.color,
+      isVisible: true,
+      source: preset.source,
+    }
+  }
+
+  return {
+    id: calendarId,
+    name: calendarId.replace(/[-_]/g, " "),
+    color: "#a78bfa",
+    isVisible: true,
+    source: "local",
+  }
+}
+
+function mergeScheduleEvents(baseEvents: ScheduleEvent[], overlayEvents: ScheduleEvent[]) {
+  if (overlayEvents.length === 0) {
+    return baseEvents
+  }
+
+  const filteredBaseEvents = baseEvents.filter((baseEvent) => {
+    return !overlayEvents.some((overlayEvent) => {
+      if (overlayEvent.id === baseEvent.id) {
+        return true
+      }
+
+      if (overlayEvent.taskId && baseEvent.taskId) {
+        return overlayEvent.taskId === baseEvent.taskId
+      }
+
+      return false
+    })
+  })
+
+  return [...filteredBaseEvents, ...overlayEvents].sort(
+    (left, right) => new Date(left.start).getTime() - new Date(right.start).getTime(),
+  )
+}
+
+function toScheduleEventInput(event: ScheduleEvent): ScheduleEventInput {
+  return {
+    id: event.id,
+    title: event.title,
+    start: event.start,
+    end: event.end,
+    source: event.source,
+    taskId: event.taskId,
+    status: event.status,
+    location: event.location,
+    externalEventId: event.externalEventId,
+    isImmutable: event.isImmutable,
+    calendarId: event.calendarId,
+  }
+}
+
+function getScheduleErrorMessage(payload: unknown, fallback: string) {
+  if (payload && typeof payload === "object") {
+    const details = "details" in payload && typeof payload.details === "string" ? payload.details : null
+    const error = "error" in payload && typeof payload.error === "string" ? payload.error : null
+
+    if (details) {
+      return details
+    }
+
+    if (error) {
+      return error
+    }
+  }
+
+  return fallback
+}
 
 export default function DashboardPage() {
   const [panelsHidden, setPanelsHidden] = useState(false)
@@ -37,10 +138,18 @@ export default function DashboardPage() {
   // ##### BACKEND API #####
   // DO NOT MODIFY UNLESS BACKEND OWNER
   const [dashboardData, setDashboardData] = useState<DashboardResponse | null>(null)
+  const [scheduledOverlayEvents, setScheduledOverlayEvents] = useState<ScheduleEvent[]>([])
+  const [plannerStatus, setPlannerStatus] = useState<PlannerUiStatus>("Not scheduled")
+  const [plannerSummary, setPlannerSummary] = useState("")
+  const [isScheduling, setIsScheduling] = useState(false)
   // ##### END BACKEND #####
 
   // Get visible calendar IDs for filtering events
   const visibleCalendarIds = calendars.filter(cal => cal.isVisible).map(cal => cal.id)
+  const mergedScheduleEvents = useMemo(
+    () => mergeScheduleEvents(dashboardData?.events || [], scheduledOverlayEvents),
+    [dashboardData?.events, scheduledOverlayEvents],
+  )
   
   // Get the active calendar object
   const activeCalendar = activeCalendarId 
@@ -91,6 +200,70 @@ export default function DashboardPage() {
       isActive = false
     }
   }, [])
+
+  useEffect(() => {
+    setCalendars((currentCalendars) => {
+      const knownCalendarIds = new Set(currentCalendars.map((calendar) => calendar.id))
+      const nextCalendars = [...currentCalendars]
+
+      for (const event of mergedScheduleEvents) {
+        const displayCalendarId = getDisplayCalendarId(event.calendarId)
+
+        if (knownCalendarIds.has(displayCalendarId)) {
+          continue
+        }
+
+        nextCalendars.push(createCalendarFromId(displayCalendarId))
+        knownCalendarIds.add(displayCalendarId)
+      }
+
+      return nextCalendars.length === currentCalendars.length ? currentCalendars : nextCalendars
+    })
+  }, [mergedScheduleEvents])
+
+  const handleSchedule = async () => {
+    if (isScheduling || !dashboardData) {
+      return
+    }
+
+    setIsScheduling(true)
+    setPlannerStatus("Scheduling...")
+    setPlannerSummary("")
+
+    try {
+      const visibleHardEvents = dashboardData.events
+        .filter((event) => !event.calendarId || visibleCalendarIds.includes(event.calendarId))
+        .map(toScheduleEventInput)
+
+      const response = await fetch("/api/schedule", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          taskIds: [],
+          hardEvents: visibleHardEvents,
+        }),
+      })
+
+      const payload = await response.json().catch(() => null)
+
+      if (!response.ok || !payload) {
+        throw new Error(getScheduleErrorMessage(payload, "Scheduling failed."))
+      }
+
+      const scheduleResponse = payload as ScheduleResponse
+
+      setScheduledOverlayEvents(scheduleResponse.schedule.proposedEvents)
+      setPlannerStatus(scheduleResponse.schedule.plannerStatus === "ready" ? "Ready" : "Not scheduled")
+      setPlannerSummary(scheduleResponse.schedule.summary)
+    } catch (error) {
+      setPlannerStatus("Error")
+      setPlannerSummary(error instanceof Error ? error.message : "Scheduling failed.")
+    } finally {
+      setIsScheduling(false)
+    }
+  }
   // ##### END BACKEND #####
 
   return (
@@ -218,6 +391,11 @@ export default function DashboardPage() {
                 onSyncWithGoogle={handleSyncWithGoogle}
                 visibleCalendarIds={visibleCalendarIds}
                 calendars={calendars}
+                events={mergedScheduleEvents}
+                plannerStatus={plannerStatus}
+                plannerSummary={plannerSummary}
+                onSchedule={handleSchedule}
+                isScheduling={isScheduling}
               />
             </div>
           )}
@@ -254,6 +432,11 @@ export default function DashboardPage() {
               onSyncWithGoogle={handleSyncWithGoogle}
               visibleCalendarIds={visibleCalendarIds}
               calendars={calendars}
+              events={mergedScheduleEvents}
+              plannerStatus={plannerStatus}
+              plannerSummary={plannerSummary}
+              onSchedule={handleSchedule}
+              isScheduling={isScheduling}
             />
           </div>
 
