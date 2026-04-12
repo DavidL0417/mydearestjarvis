@@ -54,24 +54,24 @@ export function WhatToDoNow({ currentTask }: WhatToDoNowProps) {
   }
 
   return (
-    <Card className="bg-[#141414] border-[#2a2a2a]">
+    <Card className="bg-card border-border">
       <CardHeader className="p-3 pb-1">
-        <div className="flex items-center gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full bg-[#3b82f6]" />
-          <CardTitle className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-[#3b82f6]" />
+          <CardTitle className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
             What to do now
           </CardTitle>
         </div>
       </CardHeader>
-      <CardContent className="p-3 pt-2 space-y-1.5">
-        <p className="text-xs font-medium text-foreground">{task.title}</p>
-        <p className="text-[10px] text-muted-foreground">{task.subtitle}</p>
-        <p className="text-[10px] text-muted-foreground">{task.status}</p>
+      <CardContent className="p-3 pt-2 space-y-2">
+        <p className="text-sm font-bold text-foreground">{task.title}</p>
+        <p className="text-xs text-muted-foreground font-medium">{task.subtitle}</p>
+        <p className="text-xs text-muted-foreground font-medium">{task.status}</p>
         <div className="flex gap-2 pt-1">
           <Button 
             size="sm" 
             onClick={handleDone}
-            className="bg-[#3b82f6] hover:bg-[#2563eb] text-white text-[10px] h-6 px-3"
+            className="bg-[#3b82f6] hover:bg-[#2563eb] text-white text-xs h-7 px-3 font-semibold"
           >
             Done
           </Button>
@@ -79,7 +79,7 @@ export function WhatToDoNow({ currentTask }: WhatToDoNowProps) {
             size="sm" 
             variant="outline" 
             onClick={handleSomethingElse}
-            className="border-[#2a2a2a] text-foreground hover:bg-[#1f1f1f] text-[10px] h-6 px-3"
+            className="border-border text-foreground hover:bg-secondary text-xs h-7 px-3 font-semibold"
           >
             Something else
           </Button>
