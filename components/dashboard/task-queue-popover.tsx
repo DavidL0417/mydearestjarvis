@@ -7,10 +7,10 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import type { SeedDemoTask } from "@/lib/seed-demo-tasks"
+import type { Task } from "@/types"
 
 interface TaskQueuePopoverProps {
-  tasks: SeedDemoTask[]
+  tasks: Task[]
 }
 
 function formatDeadline(value: string | null) {
@@ -64,10 +64,10 @@ export function TaskQueuePopover({ tasks }: TaskQueuePopoverProps) {
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.32em] text-muted-foreground">
-                Demo Tasks
+                Live Tasks
               </p>
               <h3 className="mt-1 text-base font-semibold text-foreground">
-                Seed task queue
+                Task queue
               </h3>
             </div>
             <div className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
@@ -78,7 +78,7 @@ export function TaskQueuePopover({ tasks }: TaskQueuePopoverProps) {
 
         {sortedTasks.length === 0 ? (
           <div className="px-4 py-10 text-center text-sm font-medium text-muted-foreground">
-            No tasks are loaded for the current dashboard session.
+            No live tasks are loaded for the current dashboard session.
           </div>
         ) : (
           <ScrollArea className="h-[min(26rem,60vh)]">

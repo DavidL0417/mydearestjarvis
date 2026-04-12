@@ -2,6 +2,44 @@
 
 ## Log
 
+### 2026-04-12 11:45 CDT
+
+- Found why the live queue was stuck at exactly 2 items in [`app/page.tsx`](./../app/page.tsx): those were the only two seed tasks with `NULL` deadlines, so they were the only rows surviving the import into `/api/tasks`.
+- Normalized seed-task deadlines to UTC ISO strings before posting them to the task-create API; the rest of the seed rows were previously being rejected because the importer was forwarding raw `-05:00` offset strings into a schema path that expects normalized datetimes.
+- Root cause: queue-source mismatch was already fixed, but the seed-to-live importer still had a payload-format bug, so only undated seed tasks ever became live DB tasks.
+- Status: `pnpm exec tsc --noEmit --incremental false` passes after the deadline normalization fix.
+- Next step: reload the dashboard so the remaining 18 seed tasks get imported into the live queue instead of only the two no-deadline tasks.
+
+### 2026-04-12 11:36 CDT
+
+- Fixed the actual queue-source mismatch across [`components/dashboard/task-queue-popover.tsx`](./../components/dashboard/task-queue-popover.tsx), [`components/dashboard/schedule-view.tsx`](./../components/dashboard/schedule-view.tsx), [`components/dashboard/master-input.tsx`](./../components/dashboard/master-input.tsx), and [`app/page.tsx`](./../app/page.tsx): the schedule-side popover now renders the same live `Task[]` data as Master Input instead of the static `sql/seed_demo_data.sql` preview.
+- Renamed the popover copy from `Demo Tasks / Seed task queue` to `Live Tasks / Task queue` so the UI no longer implies the static seed file is the live task database.
+- Root cause: the right-side queue was still bound to seed-file data while the left-side assistant intro was correctly bound to the real DB-backed task list, which produced the contradictory `2 live tasks` vs `20 seed tasks` state.
+- Status: `pnpm exec tsc --noEmit --incremental false` passes after switching the queue popover to live task data.
+- Next step: refresh the dashboard and confirm the queue count now matches the assistant’s live-task count instead of the old seed preview count.
+
+### 2026-04-12 11:24 CDT
+
+- Replaced the brittle one-shot demo-task hydration gate in [`app/page.tsx`](./../app/page.tsx): the dashboard now reconciles the seeded demo queue against the actual live task list by title/deadline and imports only missing items, instead of trusting a stale browser `localStorage` flag.
+- Added a per-session attempted-import guard so failed demo-task rows do not loop forever on every render, while valid missing demo tasks still get promoted into the real task table for Master Input / scheduling.
+- Root cause: the previous `jarvis-demo-tasks-hydrated-v1` browser flag could stay `true` even when the DB-backed task list was still empty, which left the UI showing the seed queue while the assistant kept seeing no actual tasks.
+- Status: `pnpm exec tsc --noEmit --incremental false` passes after the hydration reconciliation fix.
+- Next step: reload the dashboard; missing seed tasks should be imported into the live task list again even if an earlier session already set the old hydration flag.
+
+### 2026-04-12 11:02 CDT
+
+- Fixed the deeper demo-queue mismatch in [`app/page.tsx`](./../app/page.tsx): when the live task table is empty but the seeded demo queue exists, the dashboard now hydrates those seeded items through the real `/api/tasks` path once and reloads from the actual task list.
+- This turns the schedule popover’s 20 demo tasks into real dashboard tasks so `MasterInput`, scheduling, and task tools stop disagreeing about whether work exists.
+- Status: `pnpm exec tsc --noEmit --incremental false` passes after the demo-task hydration pass.
+- Next step: hard refresh the dashboard and confirm the assistant no longer reports an empty queue after the live task list has been populated from the seed set.
+
+### 2026-04-12 10:47 CDT
+
+- Fixed the left-side secretary context mismatch in [`components/dashboard/master-input.tsx`](./../components/dashboard/master-input.tsx) and [`app/page.tsx`](./../app/page.tsx): the initial assistant state now derives its queue summary from the same live tasks / seeded demo tasks that power the schedule surface instead of defaulting to a generic empty intro.
+- Wired `MasterInput` to receive `tasks` and `seedDemoTasks` from the dashboard shell so demo-task mode and real task mode stay visually consistent.
+- Status: `pnpm exec tsc --noEmit --incremental false` passes after the task-context sync fix.
+- Next step: visually confirm the master-input intro now references the seeded queue on desktop/mobile and no longer implies the queue is empty when the task popover shows demo items.
+
 ### 2026-04-12 10:33 CDT
 
 - Moved the task-queue trigger fully into [`components/dashboard/schedule-view.tsx`](./../components/dashboard/schedule-view.tsx) and removed the extra shell banner from [`app/page.tsx`](./../app/page.tsx) so the schedule surface owns that control directly.

@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { mapPreferencesRowToPreferences, mapScheduleEventRowToScheduleEvent, mapTaskRowToTask } from "@/lib/data/mappers"
 import { buildMemorySummaryMarkdown, deriveAvailabilityWindowsFromScheduleContext } from "@/lib/ai/claude"
+import { loadGoogleCalendarEventsForUser } from "@/lib/google-calendar-events"
 import { createPlaceholderCalendarEvents } from "@/lib/mock-calendar-events"
 import { runScheduleEventsSelectWithCompat } from "@/lib/supabase/schema-compat"
 import type {
@@ -136,7 +137,7 @@ export async function loadAssistantRuntimeContext(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<AssistantRuntimeContext> {
-  const [preferencesResult, tasksResult, eventsResult, memoryResult] = await Promise.all([
+  const [preferencesResult, tasksResult, eventsResult, memoryResult, googleCalendarResult] = await Promise.all([
     supabase
       .from("preferences")
       .select(
@@ -164,6 +165,7 @@ export async function loadAssistantRuntimeContext(
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(12),
+    loadGoogleCalendarEventsForUser(userId),
   ])
 
   const firstError =
@@ -182,10 +184,12 @@ export async function loadAssistantRuntimeContext(
   const persistedEvents = ((eventsResult.data || []) as unknown as ScheduleEventRow[]).map(
     mapScheduleEventRowToScheduleEvent,
   )
-  const placeholderEvents = createPlaceholderCalendarEvents(userId)
+  const externalEvents = googleCalendarResult.connected
+    ? googleCalendarResult.events
+    : createPlaceholderCalendarEvents(userId)
   const persistedEventKeys = new Set(persistedEvents.map(getEventIdentity))
   const events = [
-    ...placeholderEvents.filter((event) => !persistedEventKeys.has(getEventIdentity(event))),
+    ...externalEvents.filter((event) => !persistedEventKeys.has(getEventIdentity(event))),
     ...persistedEvents,
   ].sort((left, right) => new Date(left.start).getTime() - new Date(right.start).getTime())
   const memoryEntries = (memoryResult.data || []).map(toMemoryEntrySummary)

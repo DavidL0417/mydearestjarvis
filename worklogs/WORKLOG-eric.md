@@ -2,6 +2,22 @@
 
 ## Log
 
+### 2026-04-12 12:03 CDT
+
+- Wired real Google calendar events into the actual scheduling context by extracting a shared server helper in [`lib/google-calendar-events.ts`](./../lib/google-calendar-events.ts) and reusing it from [`app/api/google-calendar/events/route.ts`](./../app/api/google-calendar/events/route.ts), [`lib/assistant/context.ts`](./../lib/assistant/context.ts), and [`app/api/schedule/route.ts`](./../app/api/schedule/route.ts).
+- `Master Input` / secretary scheduling now reads persisted task events plus the same server-fetched Google events instead of relying only on placeholder calendar blocks; the `Schedule` button now also merges those Google events into `hardEvents` before calling Claude.
+- Tightened failure behavior: if one or more Google calendars cannot be fetched, the shared helper now throws a concrete error instead of silently dropping those calendars and scheduling against a partial event set.
+- Status: `pnpm exec tsc --noEmit --incremental false` passes after the shared Google-event scheduling-context update.
+- Next step: reload the dashboard and retry scheduling; Claude should now reason over the real synced calendar set, and any remaining Google fetch problem should surface as a direct backend error instead of a hidden partial schedule context.
+
+### 2026-04-12 11:14 CDT
+
+- Fixed the assistant’s broad scheduling-query bug in [`lib/assistant/secretary.ts`](./../lib/assistant/secretary.ts): `schedule_tasks` no longer treats phrases like `all my tasks` or `task queue` as literal title filters, and it now matches against task tags as well as titles when a real query is present.
+- Added prompt guidance so Claude uses the open task set for whole-queue scheduling/replanning requests instead of passing `all my tasks` into `taskQuery`.
+- Root cause: the tool only fell back to the open queue when `taskQuery` was absent; if Claude supplied a broad phrase, the title-only filter returned zero matches and surfaced `I couldn't find any tasks to schedule from that request.`
+- Status: `pnpm exec tsc --noEmit --incremental false` passes after the scheduling-query fix.
+- Next step: refresh the dashboard and retry `Schedule all my tasks for me`; it should now schedule the open queue instead of asking for missing task details.
+
 ### 2026-04-12 10:18 CDT
 
 - Fixed the “assistant says created, but schedule does not update” regression in [`lib/data/mappers.ts`](./../lib/data/mappers.ts): legacy `schedule_events` rows without `is_checked_in` now default `isCheckedIn` to `false` instead of producing an invalid dashboard payload during the post-create refresh.

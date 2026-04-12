@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import dynamic from "next/dynamic"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -136,6 +136,34 @@ function buildOptimisticTask(userId: string, input: CreateTaskRequest): Task {
   }
 }
 
+function toSeedTaskCreateRequest(task: SeedDemoTask): CreateTaskRequest {
+  const normalizedDeadline = task.deadline ? new Date(task.deadline).toISOString() : null
+  const scheduledFor =
+    task.status === "scheduled" && normalizedDeadline
+      ? new Date(new Date(normalizedDeadline).getTime() - 60 * 60 * 1000).toISOString()
+      : null
+
+  return {
+    title: task.title,
+    description: task.description,
+    deadline: normalizedDeadline,
+    priority: task.priority,
+    status: task.status,
+    tags: task.tags,
+    scheduledFor,
+  }
+}
+
+function getTaskSeedIdentity(task: Pick<SeedDemoTask, "title" | "deadline"> | Pick<Task, "title" | "deadline">) {
+  return `${task.title.trim().toLowerCase()}::${task.deadline ?? "no-deadline"}`
+}
+
+function getMissingSeedTasks(seedTasks: SeedDemoTask[], tasks: Task[]) {
+  const liveTaskIdentities = new Set(tasks.map((task) => getTaskSeedIdentity(task)))
+
+  return seedTasks.filter((task) => !liveTaskIdentities.has(getTaskSeedIdentity(task)))
+}
+
 function mergeTaskUpdate(task: Task, update: UpdateTaskRequest): Task {
   return {
     ...task,
@@ -244,6 +272,8 @@ export default function DashboardPage() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [seedDemoTasks, setSeedDemoTasks] = useState<SeedDemoTask[]>([])
   const [taskErrorMessage, setTaskErrorMessage] = useState("")
+  const [isHydratingDemoTasks, setIsHydratingDemoTasks] = useState(false)
+  const attemptedSeedHydrationRef = useRef<Set<string>>(new Set())
 
   // ##### BACKEND API #####
   // DO NOT MODIFY UNLESS BACKEND OWNER
@@ -374,6 +404,78 @@ export default function DashboardPage() {
       setActiveCalendarId(null)
     }
   }, [activeCalendarId, calendars])
+
+  const missingSeedTasks = useMemo(() => getMissingSeedTasks(seedDemoTasks, tasks), [seedDemoTasks, tasks])
+  const pendingSeedTasks = useMemo(
+    () =>
+      missingSeedTasks.filter(
+        (task) => !attemptedSeedHydrationRef.current.has(getTaskSeedIdentity(task)),
+      ),
+    [missingSeedTasks],
+  )
+
+  useEffect(() => {
+    if (!dashboardData || pendingSeedTasks.length === 0 || isHydratingDemoTasks) {
+      return
+    }
+
+    let isActive = true
+
+    const hydrateDemoTasks = async () => {
+      setIsHydratingDemoTasks(true)
+      clearTaskError()
+
+      try {
+        const failures: string[] = []
+
+        for (const seedTask of pendingSeedTasks) {
+          attemptedSeedHydrationRef.current.add(getTaskSeedIdentity(seedTask))
+          const response = await fetch("/api/tasks", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(toSeedTaskCreateRequest(seedTask)),
+          })
+          const payload = await response.json().catch(() => null)
+
+          if (!response.ok) {
+            failures.push(getApiErrorMessage(payload, `Failed to create demo task "${seedTask.title}".`))
+          }
+        }
+
+        if (!isActive) {
+          return
+        }
+
+        await loadDashboard()
+
+        if (failures.length > 0) {
+          setTaskErrorMessage(failures[0])
+        }
+      } catch (error) {
+        if (!isActive) {
+          return
+        }
+
+        setTaskErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "Failed to hydrate the seeded demo task queue into the live task list.",
+        )
+      } finally {
+        if (isActive) {
+          setIsHydratingDemoTasks(false)
+        }
+      }
+    }
+
+    void hydrateDemoTasks()
+
+    return () => {
+      isActive = false
+    }
+  }, [dashboardData, isHydratingDemoTasks, loadDashboard, pendingSeedTasks])
 
   const clearTaskError = () => {
     setTaskErrorMessage("")
@@ -769,7 +871,7 @@ export default function DashboardPage() {
         <div className="md:hidden flex-1 overflow-auto">
           {mobileSection === "command" && (
             <div className="flex flex-col gap-3 h-full overflow-auto">
-              <MasterInput />
+              <MasterInput tasks={tasks} />
               <WorkspaceSnapshot stats={dashboardData?.stats} />
               <PanelTabs activeTab={activePanelTab} onTabChange={setActivePanelTab} />
               {renderLeftPanelContent()}
@@ -782,7 +884,6 @@ export default function DashboardPage() {
                 calendars={calendars}
                 events={mergedScheduleEvents}
                 tasks={tasks}
-                seedTasks={seedDemoTasks}
                 plannerStatus={plannerStatus}
                 plannerSummary={plannerSummary}
                 onSchedule={handleSchedule}
@@ -812,7 +913,7 @@ export default function DashboardPage() {
             <ResizablePanel defaultSize={34} minSize={24} maxSize={44}>
               <div className="h-full overflow-auto pr-1">
                 <div className="flex flex-col gap-3">
-                  <MasterInput />
+                  <MasterInput tasks={tasks} />
                   <WorkspaceSnapshot stats={dashboardData?.stats} />
                   <PanelTabs activeTab={activePanelTab} onTabChange={setActivePanelTab} />
                   {renderLeftPanelContent()}
@@ -829,7 +930,6 @@ export default function DashboardPage() {
                   calendars={calendars}
                   events={mergedScheduleEvents}
                   tasks={tasks}
-                  seedTasks={seedDemoTasks}
                   plannerStatus={plannerStatus}
                   plannerSummary={plannerSummary}
                   onSchedule={handleSchedule}

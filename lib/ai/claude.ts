@@ -92,6 +92,7 @@ type PlanningContext = {
   }
   memoryMarkdown: string
   preferences: PlanningPreferences
+  hardEvents: SchedulePlanResult["proposedEvents"]
   fixedTaskEvents: SchedulePlanResult["proposedEvents"]
   fixedTaskIds: Set<string>
   occupiedIntervals: Interval[]
@@ -235,11 +236,13 @@ function buildPlanningContext(input: SchedulePreparationContext): PlanningContex
     .filter((task) => task.isImmutable && task.scheduledFor)
     .map((task) => taskToFixedEvent(task, input.userId))
     .filter((event) => isEventInsidePlanningWindow(event.start, event.end, planningWindow))
+  const hardEvents = input.hardEvents
+    .filter((event) => !event.allDay)
+    .filter((event) => isEventInsidePlanningWindow(event.start, event.end, planningWindow))
 
   const fixedTaskIds = new Set(fixedTaskEvents.map((event) => event.taskId).filter((taskId): taskId is string => Boolean(taskId)))
   const occupiedIntervals = [
-    ...input.hardEvents
-      .filter((event) => isEventInsidePlanningWindow(event.start, event.end, planningWindow))
+    ...hardEvents
       .map((event) => ({
         startMs: new Date(event.start).getTime(),
         endMs: new Date(event.end).getTime(),
@@ -264,6 +267,7 @@ function buildPlanningContext(input: SchedulePreparationContext): PlanningContex
     planningWindow,
     memoryMarkdown: "",
     preferences,
+    hardEvents,
     fixedTaskEvents,
     fixedTaskIds,
     occupiedIntervals,
@@ -288,6 +292,14 @@ async function requestClaudeSchedule(client: Anthropic, context: PlanningContext
     systemPrompt: MASTER_SCHEDULING_PROMPT,
     memoryMarkdown: context.memoryMarkdown,
     availabilityWindows: context.availabilityWindows,
+    hardEvents: context.hardEvents.map((event) => ({
+      title: event.title,
+      start: event.start,
+      end: event.end,
+      allDay: event.allDay,
+      location: event.location,
+      calendarId: event.calendarId,
+    })),
     fixedTaskEvents: context.fixedTaskEvents.map((event) => ({
       taskId: event.taskId,
       title: event.title,
@@ -752,6 +764,14 @@ function logSchedulerDebug(payload: {
   systemPrompt: string
   memoryMarkdown: string
   availabilityWindows: AvailabilityWindow[]
+  hardEvents: Array<{
+    title: string
+    start: string
+    end: string
+    allDay: boolean
+    location: string | null
+    calendarId: string | null
+  }>
   fixedTaskEvents: Array<{
     taskId: string | null
     title: string

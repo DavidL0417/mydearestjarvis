@@ -9,6 +9,7 @@ import {
   mapTaskRowToTask,
 } from "@/lib/data/mappers"
 import { generateSchedule } from "@/lib/ai/claude"
+import { loadGoogleCalendarEventsForUser } from "@/lib/google-calendar-events"
 import {
   isAuthenticationRequiredError,
   requireAuthenticatedUser,
@@ -21,7 +22,11 @@ import {
   scheduleRequestSchema,
   scheduleResponseSchema,
 } from "@/schemas/schedule"
-import type { ScheduleEventInsertRow, SchedulePreparationContext, ScheduleResponse } from "@/types"
+import type { ScheduleEvent, ScheduleEventInsertRow, SchedulePreparationContext, ScheduleResponse } from "@/types"
+
+function getEventIdentity(event: Pick<ScheduleEvent, "calendarId" | "title" | "start" | "end" | "location">) {
+  return [event.calendarId ?? "", event.title, event.start, event.end, event.location ?? ""].join("::")
+}
 
 async function persistSchedulePlan(
   adminClient: Awaited<ReturnType<typeof requireAuthenticatedUser>>["adminClient"],
@@ -188,7 +193,7 @@ export async function POST(request: Request) {
       taskQuery = taskQuery.in("id", parsedBody.data.taskIds)
     }
 
-    const [tasksResult, preferencesResult] = await Promise.all([
+    const [tasksResult, preferencesResult, googleCalendarResult] = await Promise.all([
       taskQuery,
       adminClient
         .from("preferences")
@@ -197,6 +202,7 @@ export async function POST(request: Request) {
         )
         .eq("user_id", user.id)
         .maybeSingle(),
+      loadGoogleCalendarEventsForUser(user.id),
     ])
 
     if (tasksResult.error || preferencesResult.error) {
@@ -204,19 +210,26 @@ export async function POST(request: Request) {
     }
 
     const selectedTaskIds = new Set((tasksResult.data || []).map((task) => task.id))
+    const requestHardEvents = parsedBody.data.hardEvents
+      .filter((event) => {
+        if (!event.taskId) {
+          return true
+        }
+
+        return !selectedTaskIds.has(event.taskId)
+      })
+      .map((event) => mapScheduleEventInputToScheduleEvent(event, user.id))
+    const requestHardEventKeys = new Set(requestHardEvents.map(getEventIdentity))
+    const allHardEvents = [
+      ...requestHardEvents,
+      ...googleCalendarResult.events.filter((event) => !requestHardEventKeys.has(getEventIdentity(event))),
+    ]
+
     const scheduleContext: SchedulePreparationContext = {
       userId: user.id,
       tasks: (tasksResult.data || []).map(mapTaskRowToTask),
       preferences: mapPreferencesRowToPreferences(preferencesResult.data),
-      hardEvents: parsedBody.data.hardEvents
-        .filter((event) => {
-          if (!event.taskId) {
-            return true
-          }
-
-          return !selectedTaskIds.has(event.taskId)
-        })
-        .map((event) => mapScheduleEventInputToScheduleEvent(event, user.id)),
+      hardEvents: allHardEvents,
     }
 
     const parsedContext = schedulePreparationContextSchema.safeParse(scheduleContext)

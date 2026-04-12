@@ -162,6 +162,55 @@ function normalizeTags(tags: string[] | null | undefined) {
   )
 }
 
+function normalizeTaskQuery(query: string | null | undefined) {
+  return (query || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function getSchedulableTasks(tasks: Task[]) {
+  return tasks.filter((task) => task.status !== "completed")
+}
+
+function isBroadTaskQueueQuery(query: string | null | undefined) {
+  const normalized = normalizeTaskQuery(query)
+
+  if (!normalized) {
+    return true
+  }
+
+  return [
+    "all my tasks",
+    "all tasks",
+    "my tasks",
+    "tasks",
+    "all open tasks",
+    "open tasks",
+    "task queue",
+    "queue",
+    "all todos",
+    "todos",
+    "all to dos",
+    "to dos",
+    "everything",
+    "everything on my plate",
+    "all of it",
+  ].includes(normalized)
+}
+
+function taskMatchesScheduleQuery(task: Task, query: string) {
+  const normalizedTitle = normalizeTaskQuery(task.title)
+
+  if (normalizedTitle.includes(query)) {
+    return true
+  }
+
+  return task.tags.some((tag) => normalizeTaskQuery(tag).includes(query))
+}
+
 function makeReceipt(
   tool: string,
   status: AssistantToolCallResult["status"],
@@ -1306,9 +1355,11 @@ const toolDefinitions: ToolDefinition[] = [
     },
     async execute(input, context) {
       const parsed = scheduleTasksInputSchema.parse(input)
-      const selectedTasks = parsed.taskQuery
-        ? context.runtime.tasks.filter((task) => task.title.toLowerCase().includes(parsed.taskQuery!.toLowerCase()))
-        : context.runtime.tasks.filter((task) => task.status !== "completed")
+      const schedulableTasks = getSchedulableTasks(context.runtime.tasks)
+      const normalizedTaskQuery = normalizeTaskQuery(parsed.taskQuery)
+      const selectedTasks = isBroadTaskQueueQuery(parsed.taskQuery)
+        ? schedulableTasks
+        : schedulableTasks.filter((task) => taskMatchesScheduleQuery(task, normalizedTaskQuery))
 
       if (selectedTasks.length === 0) {
         return {
@@ -1413,6 +1464,7 @@ function buildSystemPrompt(
     "When list_events returns localDate, localStartTime, localEndTime, or localTimeRange, use those local fields for reasoning and replies instead of reading the raw UTC timestamps literally.",
     "Availability is context, not a hard rule. You may schedule outside the preferred/no-work windows when needed.",
     "If you do place work outside the stated availability context, explicitly mention that tradeoff in your final reply.",
+    'If the user asks to schedule or replan the whole queue, call schedule_tasks or replan_schedule for the open task set instead of treating phrases like "all my tasks" as a literal title filter.',
     "Never claim a change happened unless a tool succeeded.",
     "If a target is ambiguous or missing, ask for clarification instead of guessing.",
     "After using tools, end with a natural conversational reply to the user in 2-5 sentences.",

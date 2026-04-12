@@ -2,6 +2,22 @@
 
 ## Log
 
+### 2026-04-12 12:18 CDT
+
+- Updated the scheduler overlap logic in [`lib/ai/claude.ts`](./../lib/ai/claude.ts) so all-day hard events are no longer treated as blocking occupied intervals for timed task placement.
+- This means all-day calendar items like `Office` stay visible contextually, but they no longer wipe out the day’s availability windows or trigger post-plan overlap failures for timed tasks.
+- Root cause: after wiring real Google events into scheduling context, all-day Google events were being fed into the same hard-event interval set as timed events, so the planner/validator treated them as day-long conflicts.
+- Status: `pnpm exec tsc --noEmit --incremental false` passes after excluding all-day hard events from blocking overlap math.
+- Next step: retry the same scheduling request and confirm timed tasks can now be placed on days that contain all-day events without tripping `hard-event:Office`.
+
+### 2026-04-12 12:12 CDT
+
+- Fixed the planner’s hard-event blind spot in [`lib/ai/claude.ts`](./../lib/ai/claude.ts): the validator already enforced `occupiedIntervals`, but the Claude prompt payload was not actually including the filtered `hardEvents` list, so Claude could still place tasks on top of events like `Office` and only fail after validation.
+- Added `hardEvents` into the planning context and prompt/debug payloads so Claude now sees the same event constraints the backend overlap validator sees.
+- Root cause: real hard-event conflicts were being caught correctly by backend validation, but the model was planning without the full hard-event list and therefore had no direct way to avoid those blocks.
+- Status: `pnpm exec tsc --noEmit --incremental false` passes after the hard-event prompt fix.
+- Next step: retry the same scheduling request; Claude should now treat `Office` and the other hard events as explicit occupied blocks before proposing placements.
+
 ### 2026-04-12 02:56 CDT
 
 - Resolved the `main` merge conflicts on `david-scheduling-logic` while keeping David’s newer secretary/scheduler path intact: preserved the branch versions of [`app/api/assistant/message/route.ts`](./../app/api/assistant/message/route.ts), [`lib/ai/claude.ts`](./../lib/ai/claude.ts), and [`lib/supabase/demo-user.ts`](./../lib/supabase/demo-user.ts), and kept `main`’s cleanly merged auth/UI additions elsewhere.

@@ -13,6 +13,7 @@ import type {
   AssistantContextResponse,
   AssistantMessageRequest,
   AssistantMessageResponse,
+  Task,
 } from "@/types"
 
 type SubmitStatus = "idle" | "submitting" | "error"
@@ -35,6 +36,39 @@ const ACTION_LABELS = [
 ]
 
 const MAX_HISTORY_ENTRIES = 8
+
+function formatTaskTitles(titles: string[]) {
+  if (titles.length === 0) {
+    return ""
+  }
+
+  if (titles.length === 1) {
+    return titles[0]
+  }
+
+  if (titles.length === 2) {
+    return `${titles[0]} and ${titles[1]}`
+  }
+
+  return `${titles.slice(0, -1).join(", ")}, and ${titles[titles.length - 1]}`
+}
+
+function buildIntroFromTaskContext(tasks: Task[]) {
+  if (tasks.length > 0) {
+    const upcomingTitles = tasks
+      .filter((task) => task.status !== "completed" && task.status !== "missed")
+      .slice(0, 3)
+      .map((task) => task.title)
+
+    if (upcomingTitles.length > 0) {
+      return `I see ${tasks.length} live tasks right now, including ${formatTaskTitles(upcomingTitles)}. Tell me what to add, move, delete, remember, or replan.`
+    }
+
+    return `I see ${tasks.length} live tasks right now. Tell me what to add, move, delete, remember, or replan.`
+  }
+
+  return "Secretary console ready. Tell me what to add, move, delete, remember, or replan."
+}
 
 function ToolCallReceipt({ toolCalls }: { toolCalls: AssistantMessageResponse["toolCalls"] }) {
   if (toolCalls.length === 0) {
@@ -107,7 +141,13 @@ function ThinkingBubble() {
   )
 }
 
-export function MasterInput() {
+interface MasterInputProps {
+  tasks?: Task[]
+}
+
+export function MasterInput({
+  tasks = [],
+}: MasterInputProps) {
   const [message, setMessage] = useState("")
   const [status, setStatus] = useState<SubmitStatus>("idle")
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -116,11 +156,13 @@ export function MasterInput() {
     {
       id: "assistant-intro",
       role: "assistant",
-      text: "Secretary console ready. Tell me what to add, move, delete, remember, or replan.",
+      text: buildIntroFromTaskContext(tasks),
     },
   ])
   const transcriptRef = useRef<HTMLDivElement | null>(null)
   const transcriptBottomRef = useRef<HTMLDivElement | null>(null)
+
+  const derivedTaskContext = useMemo(() => buildIntroFromTaskContext(tasks), [tasks])
 
   const scrollTranscriptToBottom = (behavior: ScrollBehavior = "smooth") => {
     if (transcriptBottomRef.current) {
@@ -172,6 +214,25 @@ export function MasterInput() {
 
     return () => window.cancelAnimationFrame(animationFrame)
   }, [transcript, status])
+
+  useEffect(() => {
+    setTranscript((current) => {
+      if (current.length !== 1 || current[0]?.id !== "assistant-intro") {
+        return current
+      }
+
+      if (current[0].text === derivedTaskContext) {
+        return current
+      }
+
+      return [
+        {
+          ...current[0],
+          text: derivedTaskContext,
+        },
+      ]
+    })
+  }, [derivedTaskContext])
 
   const availabilityLines = useMemo(() => {
     if (!context) {

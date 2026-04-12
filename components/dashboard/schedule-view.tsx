@@ -17,7 +17,6 @@ import {
   getTaskDueTimeLabel,
   TASKS_CALENDAR_ID,
 } from "@/lib/task-calendar-constants"
-import type { SeedDemoTask } from "@/lib/seed-demo-tasks"
 import type { ScheduleEvent, Task } from "@/types"
 import type { Calendar } from "./calendars-sidebar"
 import { TaskQueuePopover } from "./task-queue-popover"
@@ -229,7 +228,6 @@ interface ScheduleViewProps {
   calendars?: Calendar[]
   events?: ScheduleEvent[]
   tasks?: Task[]
-  seedTasks?: SeedDemoTask[]
   plannerStatus?: string
   plannerSummary?: string
   onSchedule?: () => void | Promise<void>
@@ -241,7 +239,6 @@ export function ScheduleView({
   calendars,
   events: scheduleEvents = [],
   tasks = [],
-  seedTasks = [],
   plannerStatus = "Not scheduled",
   plannerSummary = "",
   onSchedule,
@@ -704,7 +701,7 @@ export function ScheduleView({
               ) : null}
               Schedule
             </Button>
-            <TaskQueuePopover tasks={seedTasks} />
+            <TaskQueuePopover tasks={tasks} />
           </div>
 
           {/* Center - Navigation */}
@@ -770,7 +767,7 @@ export function ScheduleView({
               ) : null}
               Schedule
             </Button>
-            <TaskQueuePopover tasks={seedTasks} />
+            <TaskQueuePopover tasks={tasks} />
           </div>
           <div className="flex items-center gap-2 ml-auto">
             <span className="text-xs text-muted-foreground font-semibold">Days:</span>
