@@ -1,17 +1,22 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import type { ReactNode } from "react"
 import dynamic from "next/dynamic"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
+import {
+  AlertTriangle,
+  Brain,
+  CalendarDays,
+  Database,
+  Loader2,
+  PanelLeft,
+  RefreshCw,
+  Sparkles,
+  ListTodo,
+  type LucideIcon,
+} from "lucide-react"
+
 import { AuthControls } from "@/components/auth/auth-controls"
-import { DashboardHeader } from "@/components/dashboard/dashboard-header"
-import { WorkspaceSnapshot } from "@/components/dashboard/workspace-snapshot"
-import { PanelTabs, type PanelTabId } from "@/components/dashboard/panel-tabs"
-import { MasterInput } from "@/components/dashboard/master-input"
-import { WhatToDoNow } from "@/components/dashboard/what-to-do-now"
-import { StatusPanel } from "@/components/dashboard/status-panel"
 import {
   CalendarsSidebar,
   sortCalendars,
@@ -19,65 +24,67 @@ import {
   type Calendar,
 } from "@/components/dashboard/calendars-sidebar"
 import { CheckInSidebar } from "@/components/dashboard/checkin-sidebar"
+import { MasterInput } from "@/components/dashboard/master-input"
 import { TaskManager } from "@/components/dashboard/task-manager"
-import { X, Book } from "lucide-react"
-// ##### BACKEND API #####
-// DO NOT MODIFY UNLESS BACKEND OWNER
-import { getCalendarsData } from "@/lib/data/calendars"
-import { getPendingCheckInApprovals } from "@/lib/data/checkins"
-import { getDashboardData } from "@/lib/data/dashboard"
-import { getSeedDemoTasksData } from "@/lib/data/seed-demo-tasks"
-import type { SeedDemoTask } from "@/lib/seed-demo-tasks"
+import { Button } from "@/components/ui/button"
 import type {
+  CalendarListResponse,
   CheckInApprovalItem,
+  CheckInApprovalListResponse,
   CreateTaskRequest,
   DashboardResponse,
   DeleteTaskResponse,
   ScheduleEvent,
   ScheduleEventInput,
   ScheduleResponse,
-  Task,
   TaskMutationResponse,
   UpdateTaskRequest,
 } from "@/types"
-// ##### END BACKEND #####
-
-type MobileSection = "command" | "schedule" | "status"
-type PlannerUiStatus = "Not scheduled" | "Scheduling..." | "Ready" | "Error"
-type FocusQueueTone = "neutral" | "warning" | "critical"
 
 const ScheduleView = dynamic(
   () => import("@/components/dashboard/schedule-view").then((module) => module.ScheduleView),
   { ssr: false },
 )
 
-const DEFAULT_BACKEND_CALENDAR_ID = "calendar-main"
-const DEFAULT_TASK_CALENDAR_ID = "cal-tasks"
-const FALLBACK_USER_ID = "00000000-0000-4000-8000-000000000000"
 const DASHBOARD_REFRESH_EVENT = "jarvis-dashboard-refresh"
+const DEFAULT_TASK_CALENDAR_ID = "cal-tasks"
 
-function mergeScheduleEvents(baseEvents: ScheduleEvent[], overlayEvents: ScheduleEvent[]) {
-  if (overlayEvents.length === 0) {
-    return baseEvents
+type DashboardViewState =
+  | { status: "loading" }
+  | { status: "signed-out" }
+  | { status: "error"; message: string }
+  | { status: "ready"; dashboard: DashboardResponse }
+
+type PlannerUiStatus = "Idle" | "Scheduling" | "Ready" | "Error"
+
+class AuthRequiredError extends Error {}
+
+function getApiErrorMessage(payload: unknown, fallback: string) {
+  if (payload && typeof payload === "object") {
+    const details = "details" in payload && typeof payload.details === "string" ? payload.details : null
+    const error = "error" in payload && typeof payload.error === "string" ? payload.error : null
+    return details || error || fallback
   }
 
-  const filteredBaseEvents = baseEvents.filter((baseEvent) => {
-    return !overlayEvents.some((overlayEvent) => {
-      if (overlayEvent.id === baseEvent.id) {
-        return true
-      }
+  return fallback
+}
 
-      if (overlayEvent.taskId && baseEvent.taskId) {
-        return overlayEvent.taskId === baseEvent.taskId
-      }
-
-      return false
-    })
+async function fetchJson<T>(url: string, fallback: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, {
+    cache: "no-store",
+    ...init,
   })
+  const payload = await response.json().catch(() => null)
 
-  return [...filteredBaseEvents, ...overlayEvents].sort(
-    (left, right) => new Date(left.start).getTime() - new Date(right.start).getTime(),
-  )
+  if (response.status === 401) {
+    throw new AuthRequiredError("Authentication required.")
+  }
+
+  if (!response.ok || !payload) {
+    throw new Error(getApiErrorMessage(payload, fallback))
+  }
+
+  return payload as T
 }
 
 function toScheduleEventInput(event: ScheduleEvent): ScheduleEventInput {
@@ -101,190 +108,70 @@ function toScheduleEventInput(event: ScheduleEvent): ScheduleEventInput {
   }
 }
 
-function getApiErrorMessage(payload: unknown, fallback: string) {
-  if (payload && typeof payload === "object") {
-    const details = "details" in payload && typeof payload.details === "string" ? payload.details : null
-    const error = "error" in payload && typeof payload.error === "string" ? payload.error : null
-
-    if (details) {
-      return details
-    }
-
-    if (error) {
-      return error
-    }
-  }
-
-  return fallback
-}
-
-function buildOptimisticTask(userId: string, input: CreateTaskRequest): Task {
-  return {
-    id: crypto.randomUUID(),
-    userId,
-    title: input.title,
-    description: input.description ?? null,
-    deadline: input.deadline ?? null,
-    durationMinutes: input.durationMinutes ?? null,
-    priority: input.priority ?? "medium",
-    status: input.status ?? "todo",
-    scheduledFor: input.scheduledFor ?? null,
-    isImmutable: input.isImmutable ?? false,
-    allDay: input.allDay ?? false,
-    calendarId: input.calendarId ?? DEFAULT_TASK_CALENDAR_ID,
-    tags: input.tags ?? [],
-  }
-}
-
-function toSeedTaskCreateRequest(task: SeedDemoTask): CreateTaskRequest {
-  const normalizedDeadline = task.deadline ? new Date(task.deadline).toISOString() : null
-  const scheduledFor =
-    task.status === "scheduled" && normalizedDeadline
-      ? new Date(new Date(normalizedDeadline).getTime() - 60 * 60 * 1000).toISOString()
-      : null
-
-  return {
-    title: task.title,
-    description: task.description,
-    deadline: normalizedDeadline,
-    priority: task.priority,
-    status: task.status,
-    tags: task.tags,
-    scheduledFor,
-  }
-}
-
-function getTaskSeedIdentity(task: Pick<SeedDemoTask, "title" | "deadline"> | Pick<Task, "title" | "deadline">) {
-  return `${task.title.trim().toLowerCase()}::${task.deadline ?? "no-deadline"}`
-}
-
-function getMissingSeedTasks(seedTasks: SeedDemoTask[], tasks: Task[]) {
-  const liveTaskIdentities = new Set(tasks.map((task) => getTaskSeedIdentity(task)))
-
-  return seedTasks.filter((task) => !liveTaskIdentities.has(getTaskSeedIdentity(task)))
-}
-
-function mergeTaskUpdate(task: Task, update: UpdateTaskRequest): Task {
-  return {
-    ...task,
-    title: update.title ?? task.title,
-    description: update.description !== undefined ? update.description : task.description,
-    deadline: update.deadline !== undefined ? update.deadline : task.deadline,
-    durationMinutes:
-      update.durationMinutes !== undefined ? update.durationMinutes : task.durationMinutes,
-    priority: update.priority ?? task.priority,
-    status: update.status ?? task.status,
-    scheduledFor:
-      update.scheduledFor !== undefined
-        ? update.scheduledFor
-        : update.status === "completed"
-          ? null
-          : task.scheduledFor,
-    isImmutable: update.isImmutable ?? task.isImmutable,
-    allDay: update.allDay ?? task.allDay,
-    calendarId: update.calendarId !== undefined ? update.calendarId : task.calendarId,
-    tags: update.tags ?? task.tags,
-  }
-}
-
-function applyScheduleToTasks(tasks: Task[], schedule: ScheduleResponse["schedule"]): Task[] {
-  const plannedTaskEvents = new Map(
-    schedule.proposedEvents
-      .filter((event) => event.source === "task" && event.taskId)
-      .map((event) => [event.taskId as string, event]),
-  )
-  const unscheduledTaskIds = new Set(schedule.unscheduledTaskIds)
-
-  return tasks.map((task): Task => {
-    const plannedEvent = plannedTaskEvents.get(task.id)
-
-    if (plannedEvent) {
-      return {
-        ...task,
-        status: "scheduled",
-        scheduledFor: plannedEvent.start,
-      }
-    }
-
-    if (unscheduledTaskIds.has(task.id) && task.status !== "completed" && task.status !== "missed") {
-      return {
-        ...task,
-        status: "todo",
-        scheduledFor: null,
-      }
-    }
-
-    return task
-  })
-}
-
-function getCurrentUserId(tasks: Task[], dashboardData: DashboardResponse | null) {
-  return tasks[0]?.userId || dashboardData?.events[0]?.userId || FALLBACK_USER_ID
-}
-
-function FocusQueueCard({
-  title,
-  count,
-  message,
-  tone = "neutral",
+function StatPill({
+  icon: Icon,
+  label,
+  value,
 }: {
-  title: string
-  count: number
-  message: string
-  tone?: FocusQueueTone
+  icon: LucideIcon
+  label: string
+  value: string | number
 }) {
-  const toneClasses =
-    tone === "critical"
-      ? "border-red-500/25 bg-red-500/10"
-      : tone === "warning"
-        ? "border-amber-500/25 bg-amber-500/10"
-        : "border-sky-500/25 bg-sky-500/10"
-
   return (
-    <Card className={`border shadow-[0_16px_40px_rgba(0,0,0,0.18)] ${toneClasses}`}>
-      <CardHeader className="p-4 pb-2">
-        <div className="flex items-center justify-between gap-3">
-          <CardTitle className="text-sm font-bold text-foreground">{title}</CardTitle>
-          <div className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-            {count}
+    <div className="flex h-10 min-w-0 items-center gap-2 rounded-md border border-border bg-card px-3">
+      <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+      <span className="truncate text-xs font-medium text-muted-foreground">{label}</span>
+      <span className="ml-auto text-sm font-semibold text-foreground">{value}</span>
+    </div>
+  )
+}
+
+function ShellMessage({
+  icon: Icon,
+  title,
+  detail,
+  action,
+}: {
+  icon: LucideIcon
+  title: string
+  detail: string
+  action?: ReactNode
+}) {
+  return (
+    <div className="flex min-h-[60vh] items-center justify-center px-4">
+      <div className="w-full max-w-md rounded-lg border border-border bg-card p-5">
+        <div className="flex items-start gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-background">
+            <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+          </div>
+          <div className="min-w-0 space-y-2">
+            <h1 className="text-base font-semibold text-foreground">{title}</h1>
+            <p className="text-sm leading-6 text-muted-foreground">{detail}</p>
+            {action ? <div className="pt-2">{action}</div> : null}
           </div>
         </div>
-      </CardHeader>
-      <CardContent className="p-4 pt-0">
-        <p className="text-xs font-medium text-muted-foreground">{message}</p>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }
 
 export default function DashboardPage() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [mobileSection, setMobileSection] = useState<MobileSection>("schedule")
-  const [activePanelTab, setActivePanelTab] = useState<PanelTabId>("focus")
-  
-  // Calendar management state
-  const [calendarsSidebarOpen, setCalendarsSidebarOpen] = useState(false)
+  const [viewState, setViewState] = useState<DashboardViewState>({ status: "loading" })
   const [calendars, setCalendars] = useState<Calendar[]>([])
-  const [activeCalendarId, setActiveCalendarId] = useState<string | null>(null)
+  const [calendarsSidebarOpen, setCalendarsSidebarOpen] = useState(false)
   const [pendingCheckInItems, setPendingCheckInItems] = useState<CheckInApprovalItem[]>([])
-  
-  // Task management state
-  const [tasks, setTasks] = useState<Task[]>([])
-  const [seedDemoTasks, setSeedDemoTasks] = useState<SeedDemoTask[]>([])
-  const [taskErrorMessage, setTaskErrorMessage] = useState("")
-  const [isHydratingDemoTasks, setIsHydratingDemoTasks] = useState(false)
-  const attemptedSeedHydrationRef = useRef<Set<string>>(new Set())
-
-  // ##### BACKEND API #####
-  // DO NOT MODIFY UNLESS BACKEND OWNER
-  const [dashboardData, setDashboardData] = useState<DashboardResponse | null>(null)
-  const [scheduledOverlayEvents, setScheduledOverlayEvents] = useState<ScheduleEvent[]>([])
-  const [plannerStatus, setPlannerStatus] = useState<PlannerUiStatus>("Not scheduled")
+  const [plannerStatus, setPlannerStatus] = useState<PlannerUiStatus>("Idle")
   const [plannerSummary, setPlannerSummary] = useState("")
   const [isScheduling, setIsScheduling] = useState(false)
-  // ##### END BACKEND #####
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [taskErrorMessage, setTaskErrorMessage] = useState("")
 
-  // Get visible calendar IDs for filtering events
+  const dashboard = viewState.status === "ready" ? viewState.dashboard : null
+  const events = dashboard?.events ?? []
+  const pendingCheckInEvents = useMemo(
+    () => pendingCheckInItems.map((item) => item.event),
+    [pendingCheckInItems],
+  )
   const visibleCalendarIds = useMemo<string[] | undefined>(() => {
     if (calendars.length === 0) {
       return undefined
@@ -292,379 +179,135 @@ export default function DashboardPage() {
 
     const nextIds = calendars.filter((calendar) => calendar.isVisible).map((calendar) => calendar.id)
 
-    if (!nextIds.includes(DEFAULT_BACKEND_CALENDAR_ID)) {
-      nextIds.push(DEFAULT_BACKEND_CALENDAR_ID)
+    if (!nextIds.includes(DEFAULT_TASK_CALENDAR_ID)) {
+      nextIds.push(DEFAULT_TASK_CALENDAR_ID)
     }
 
     return nextIds
   }, [calendars])
-  const mergedScheduleEvents = useMemo(
-    () => mergeScheduleEvents(dashboardData?.events || [], scheduledOverlayEvents),
-    [dashboardData?.events, scheduledOverlayEvents],
-  )
-  const pendingCheckInEvents = useMemo(
-    () => pendingCheckInItems.map((item) => item.event),
-    [pendingCheckInItems],
-  )
-  // Get the active calendar object
-  const activeCalendar = activeCalendarId 
-    ? calendars.find(cal => cal.id === activeCalendarId) || null 
-    : null
 
-  const handleOpenCalendarsSidebar = () => {
-    setCalendarsSidebarOpen(true)
-  }
-  
-  // ##### BACKEND API #####
-  // DO NOT MODIFY UNLESS BACKEND OWNER
-  const loadDashboard = useCallback(async () => {
-    const [data, calendarData, checkInData, demoTasks] = await Promise.all([
-      getDashboardData(),
-      getCalendarsData(),
-      getPendingCheckInApprovals(),
-      getSeedDemoTasksData(),
-    ])
-
-    if (!data) {
-      setDashboardData(null)
-      setCalendars([])
-      setPendingCheckInItems([])
-      setTasks([])
-      setSeedDemoTasks([])
-      setScheduledOverlayEvents([])
-      setPlannerStatus("Not scheduled")
-      setPlannerSummary("")
-      return
+  const loadDashboard = useCallback(async (quiet = false) => {
+    if (quiet) {
+      setIsRefreshing(true)
+    } else {
+      setViewState({ status: "loading" })
     }
 
-    setDashboardData(data)
-    setTasks(data.tasks)
-    setSeedDemoTasks(demoTasks)
-    setScheduledOverlayEvents([])
-    setPendingCheckInItems(checkInData ?? [])
+    try {
+      const [dashboardData, calendarData, checkInData] = await Promise.all([
+        fetchJson<DashboardResponse>("/api/dashboard", "Failed to load dashboard."),
+        fetchJson<CalendarListResponse>("/api/calendars", "Failed to load calendars."),
+        fetchJson<CheckInApprovalListResponse>("/api/checkin", "Failed to load check-ins."),
+      ])
 
-    if (calendarData) {
-      setCalendars(sortCalendars(calendarData.map(toSidebarCalendar)))
+      setViewState({ status: "ready", dashboard: dashboardData })
+      setCalendars(sortCalendars(calendarData.calendars.map(toSidebarCalendar)))
+      setPendingCheckInItems(checkInData.items)
+      setTaskErrorMessage("")
+    } catch (error) {
+      if (error instanceof AuthRequiredError) {
+        setViewState({ status: "signed-out" })
+        setCalendars([])
+        setPendingCheckInItems([])
+      } else {
+        setViewState({
+          status: "error",
+          message: error instanceof Error ? error.message : "Backend request failed.",
+        })
+      }
+    } finally {
+      setIsRefreshing(false)
     }
   }, [])
 
   useEffect(() => {
-    let isActive = true
+    void loadDashboard()
 
-    const loadDashboardSafely = async () => {
-      const [data, calendarData, checkInData, demoTasks] = await Promise.all([
-        getDashboardData(),
-        getCalendarsData(),
-        getPendingCheckInApprovals(),
-        getSeedDemoTasksData(),
-      ])
-
-      if (!isActive) {
-        return
-      }
-
-      if (!data) {
-        setDashboardData(null)
-        setCalendars([])
-        setPendingCheckInItems([])
-        setTasks([])
-        setSeedDemoTasks([])
-        setScheduledOverlayEvents([])
-        setPlannerStatus("Not scheduled")
-        setPlannerSummary("")
-        return
-      }
-
-      setDashboardData(data)
-      setTasks(data.tasks)
-      setSeedDemoTasks(demoTasks)
-      setScheduledOverlayEvents([])
-      setPendingCheckInItems(checkInData ?? [])
-
-      if (calendarData) {
-        setCalendars(sortCalendars(calendarData.map(toSidebarCalendar)))
-      }
+    const handleRefresh = () => {
+      void loadDashboard(true)
     }
 
-    const handleDashboardRefresh = () => {
-      void loadDashboard()
-    }
-
-    void loadDashboardSafely()
-    window.addEventListener(DASHBOARD_REFRESH_EVENT, handleDashboardRefresh)
-
-    return () => {
-      isActive = false
-      window.removeEventListener(DASHBOARD_REFRESH_EVENT, handleDashboardRefresh)
-    }
+    window.addEventListener(DASHBOARD_REFRESH_EVENT, handleRefresh)
+    return () => window.removeEventListener(DASHBOARD_REFRESH_EVENT, handleRefresh)
   }, [loadDashboard])
 
-  useEffect(() => {
-    if (activeCalendarId && !calendars.some((calendar) => calendar.id === activeCalendarId)) {
-      setActiveCalendarId(null)
-    }
-  }, [activeCalendarId, calendars])
-
-  const missingSeedTasks = useMemo(() => getMissingSeedTasks(seedDemoTasks, tasks), [seedDemoTasks, tasks])
-  const pendingSeedTasks = useMemo(
-    () =>
-      missingSeedTasks.filter(
-        (task) => !attemptedSeedHydrationRef.current.has(getTaskSeedIdentity(task)),
-      ),
-    [missingSeedTasks],
-  )
-
-  useEffect(() => {
-    if (!dashboardData || pendingSeedTasks.length === 0 || isHydratingDemoTasks) {
-      return
-    }
-
-    let isActive = true
-
-    const hydrateDemoTasks = async () => {
-      setIsHydratingDemoTasks(true)
-      clearTaskError()
-
-      try {
-        const failures: string[] = []
-
-        for (const seedTask of pendingSeedTasks) {
-          attemptedSeedHydrationRef.current.add(getTaskSeedIdentity(seedTask))
-          const response = await fetch("/api/tasks", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(toSeedTaskCreateRequest(seedTask)),
-          })
-          const payload = await response.json().catch(() => null)
-
-          if (!response.ok) {
-            failures.push(getApiErrorMessage(payload, `Failed to create demo task "${seedTask.title}".`))
-          }
-        }
-
-        if (!isActive) {
-          return
-        }
-
-        await loadDashboard()
-
-        if (failures.length > 0) {
-          setTaskErrorMessage(failures[0])
-        }
-      } catch (error) {
-        if (!isActive) {
-          return
-        }
-
-        setTaskErrorMessage(
-          error instanceof Error
-            ? error.message
-            : "Failed to hydrate the seeded demo task queue into the live task list.",
-        )
-      } finally {
-        if (isActive) {
-          setIsHydratingDemoTasks(false)
-        }
-      }
-    }
-
-    void hydrateDemoTasks()
-
-    return () => {
-      isActive = false
-    }
-  }, [dashboardData, isHydratingDemoTasks, loadDashboard, pendingSeedTasks])
-
-  const clearTaskError = () => {
+  async function handleCreateTask(input: CreateTaskRequest) {
     setTaskErrorMessage("")
-  }
-
-  const handleCreateTask = async (input: CreateTaskRequest) => {
-    clearTaskError()
-
-    const optimisticTask = buildOptimisticTask(getCurrentUserId(tasks, dashboardData), input)
-    const previousTasks = tasks
-
-    setTasks((current) => [...current, optimisticTask])
 
     try {
-      const response = await fetch("/api/tasks", {
+      await fetchJson<TaskMutationResponse>("/api/tasks", "Failed to create task.", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       })
-      const payload = await response.json().catch(() => null)
-
-      if (!response.ok || !payload) {
-        throw new Error(getApiErrorMessage(payload, "Failed to create task."))
-      }
-
-      const taskResponse = payload as TaskMutationResponse
-
-      setTasks((current) =>
-        current.map((task) => (task.id === optimisticTask.id ? taskResponse.task : task)),
-      )
+      await loadDashboard(true)
     } catch (error) {
-      setTasks(previousTasks)
       setTaskErrorMessage(error instanceof Error ? error.message : "Failed to create task.")
     }
   }
 
-  const handleUpdateTask = async (taskId: string, input: UpdateTaskRequest) => {
-    const existingTask = tasks.find((task) => task.id === taskId)
-
-    if (!existingTask) {
-      return
-    }
-
-    clearTaskError()
-
-    const previousTasks = tasks
-    const previousOverlayEvents = scheduledOverlayEvents
-    const optimisticTask = mergeTaskUpdate(existingTask, input)
-
-    setTasks((current) =>
-      current.map((task) => (task.id === taskId ? optimisticTask : task)),
-    )
-    setScheduledOverlayEvents((current) => {
-      if (optimisticTask.status === "completed") {
-        return current.filter((event) => event.taskId !== taskId)
-      }
-
-      return current.map((event) =>
-        event.taskId === taskId
-          ? {
-              ...event,
-              title: optimisticTask.title,
-            }
-          : event,
-      )
-    })
+  async function handleUpdateTask(taskId: string, input: UpdateTaskRequest) {
+    setTaskErrorMessage("")
 
     try {
-      const response = await fetch(`/api/tasks/${taskId}`, {
+      await fetchJson<TaskMutationResponse>(`/api/tasks/${taskId}`, "Failed to update task.", {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       })
-      const payload = await response.json().catch(() => null)
-
-      if (!response.ok || !payload) {
-        throw new Error(getApiErrorMessage(payload, "Failed to update task."))
-      }
-
-      const taskResponse = payload as TaskMutationResponse
-
-      setTasks((current) =>
-        current.map((task) => (task.id === taskId ? taskResponse.task : task)),
-      )
-      setScheduledOverlayEvents((current) => {
-        if (taskResponse.task.status === "completed") {
-          return current.filter((event) => event.taskId !== taskId)
-        }
-
-        return current.map((event) =>
-          event.taskId === taskId
-            ? {
-                ...event,
-                title: taskResponse.task.title,
-              }
-            : event,
-        )
-      })
+      await loadDashboard(true)
     } catch (error) {
-      setTasks(previousTasks)
-      setScheduledOverlayEvents(previousOverlayEvents)
       setTaskErrorMessage(error instanceof Error ? error.message : "Failed to update task.")
     }
   }
 
-  const handleToggleTaskComplete = async (task: Task) => {
+  async function handleDeleteTask(taskId: string) {
+    setTaskErrorMessage("")
+
+    try {
+      await fetchJson<DeleteTaskResponse>(`/api/tasks/${taskId}`, "Failed to delete task.", {
+        method: "DELETE",
+      })
+      await loadDashboard(true)
+    } catch (error) {
+      setTaskErrorMessage(error instanceof Error ? error.message : "Failed to delete task.")
+    }
+  }
+
+  async function handleToggleTaskComplete(task: DashboardResponse["tasks"][number]) {
     await handleUpdateTask(task.id, {
       status: task.status === "completed" ? "todo" : "completed",
     })
   }
 
-  const handleDeleteTask = async (taskId: string) => {
-    clearTaskError()
-
-    const previousTasks = tasks
-    const previousOverlayEvents = scheduledOverlayEvents
-
-    setTasks((current) => current.filter((task) => task.id !== taskId))
-    setScheduledOverlayEvents((current) => current.filter((event) => event.taskId !== taskId))
-
-    try {
-      const response = await fetch(`/api/tasks/${taskId}`, {
-        method: "DELETE",
-      })
-      const payload = await response.json().catch(() => null)
-
-      if (!response.ok || !payload) {
-        throw new Error(getApiErrorMessage(payload, "Failed to delete task."))
-      }
-
-      const deleteResponse = payload as DeleteTaskResponse
-
-      setTasks((current) => current.filter((task) => task.id !== deleteResponse.id))
-    } catch (error) {
-      setTasks(previousTasks)
-      setScheduledOverlayEvents(previousOverlayEvents)
-      setTaskErrorMessage(error instanceof Error ? error.message : "Failed to delete task.")
-    }
-  }
-
-  const handleSchedule = async (taskIds: string[] = []) => {
-    if (isScheduling || !dashboardData) {
+  async function handleSchedule(taskIds: string[] = []) {
+    if (isScheduling || !dashboard) {
       return
     }
 
     setIsScheduling(true)
-    setPlannerStatus("Scheduling...")
+    setPlannerStatus("Scheduling")
     setPlannerSummary("")
 
     try {
       const selectedTaskIds = new Set(taskIds)
-      const visibleHardEvents = dashboardData.events
-        .filter(
-          (event) =>
-            !visibleCalendarIds ||
-            !event.calendarId ||
-            visibleCalendarIds.includes(event.calendarId),
-        )
+      const hardEvents = events
         .filter((event) => !event.taskId || !selectedTaskIds.has(event.taskId))
+        .filter((event) => !visibleCalendarIds || !event.calendarId || visibleCalendarIds.includes(event.calendarId))
         .map(toScheduleEventInput)
 
-      const response = await fetch("/api/schedule", {
+      const scheduleResponse = await fetchJson<ScheduleResponse>("/api/schedule", "Scheduling failed.", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           taskIds,
-          hardEvents: visibleHardEvents,
+          hardEvents,
         }),
       })
 
-      const payload = await response.json().catch(() => null)
-
-      if (!response.ok || !payload) {
-        throw new Error(getApiErrorMessage(payload, "Scheduling failed."))
-      }
-
-      const scheduleResponse = payload as ScheduleResponse
-
-      setScheduledOverlayEvents(scheduleResponse.schedule.proposedEvents)
-      setTasks((current) => applyScheduleToTasks(current, scheduleResponse.schedule))
-      setPlannerStatus(scheduleResponse.schedule.plannerStatus === "ready" ? "Ready" : "Not scheduled")
+      setPlannerStatus(scheduleResponse.schedule.plannerStatus === "ready" ? "Ready" : "Idle")
       setPlannerSummary(scheduleResponse.schedule.summary)
-      void loadDashboard()
+      await loadDashboard(true)
     } catch (error) {
       setPlannerStatus("Error")
       setPlannerSummary(error instanceof Error ? error.message : "Scheduling failed.")
@@ -672,284 +315,190 @@ export default function DashboardPage() {
       setIsScheduling(false)
     }
   }
-  // ##### END BACKEND #####
 
-  const handleEventApproved = useCallback((approvedEvent: ScheduleEvent) => {
-    setPendingCheckInItems((currentItems) =>
-      currentItems.filter((item) => item.event.id !== approvedEvent.id),
-    )
+  const handleEventApproved = useCallback(
+    async () => {
+      await loadDashboard(true)
+    },
+    [loadDashboard],
+  )
 
-    setDashboardData((currentData) => {
-      if (!currentData) {
-        return currentData
-      }
-
-      return {
-        ...currentData,
-        events: currentData.events.map((event) =>
-          event.id === approvedEvent.id ? approvedEvent : event,
-        ),
-      }
-    })
-
-    setScheduledOverlayEvents((currentEvents) =>
-      currentEvents.map((event) => (event.id === approvedEvent.id ? approvedEvent : event)),
-    )
-
-    if (approvedEvent.taskId) {
-      setTasks((currentTasks) =>
-        currentTasks.map((task) =>
-          task.id === approvedEvent.taskId
-            ? {
-                ...task,
-                priority: approvedEvent.priority,
-                isImmutable: approvedEvent.isImmutable,
-              }
-            : task,
-        ),
-      )
-    }
-  }, [])
-
-  const renderLeftPanelContent = () => {
-    if (activePanelTab === "tasks") {
+  const renderContent = () => {
+    if (viewState.status === "loading") {
       return (
-        <TaskManager
-          mode="all"
-          calendars={calendars}
-          tasks={tasks}
-          scheduleEvents={mergedScheduleEvents}
-          errorMessage={taskErrorMessage}
-          onClearError={clearTaskError}
-          onCreateTask={handleCreateTask}
-          onUpdateTask={handleUpdateTask}
-          onDeleteTask={handleDeleteTask}
+        <ShellMessage
+          icon={Loader2}
+          title="Loading"
+          detail="Connecting to Supabase and reading your scheduler state."
         />
       )
     }
 
-    if (activePanelTab === "inbox") {
+    if (viewState.status === "signed-out") {
       return (
-        <FocusQueueCard
-          title="Decision Queue"
-          count={dashboardData?.stats.unscheduled ?? 0}
-          tone={(dashboardData?.stats.unscheduled ?? 0) > 0 ? "warning" : "neutral"}
-          message={
-            (dashboardData?.stats.unscheduled ?? 0) > 0
-              ? `${dashboardData?.stats.unscheduled ?? 0} tasks still need a slot. Use Schedule or tell Master Input what changed.`
-              : "No loose tasks in the queue right now. New requests can go straight through Master Input."
+        <ShellMessage
+          icon={Sparkles}
+          title="Sign in"
+          detail="JARVIS needs an authenticated Supabase user before it can read tasks, calendars, or memory."
+          action={<AuthControls />}
+        />
+      )
+    }
+
+    if (viewState.status === "error") {
+      return (
+        <ShellMessage
+          icon={AlertTriangle}
+          title="Backend unavailable"
+          detail={viewState.message}
+          action={
+            <Button size="sm" variant="outline" onClick={() => loadDashboard()} className="gap-2">
+              <RefreshCw className="h-4 w-4" aria-hidden="true" />
+              Retry
+            </Button>
           }
         />
       )
     }
 
-    if (activePanelTab === "status") {
-      return (
-        <div className="space-y-3">
-          <StatusPanel stats={dashboardData?.stats} />
-          {pendingCheckInEvents.length > 0 ? (
-            <CheckInSidebar
-              events={pendingCheckInEvents}
-              calendars={calendars}
-              onEventApproved={handleEventApproved}
-            />
-          ) : null}
-          {activeCalendar ? (
-            <TaskManager
-              mode="calendar"
-              calendar={activeCalendar}
-              calendars={calendars}
-              tasks={tasks}
-              scheduleEvents={mergedScheduleEvents}
-              errorMessage={taskErrorMessage}
-              onClearError={clearTaskError}
-              onCreateTask={handleCreateTask}
-              onUpdateTask={handleUpdateTask}
-              onDeleteTask={handleDeleteTask}
-            />
-          ) : null}
-        </div>
-      )
-    }
+    const dashboardData = viewState.dashboard
+    const isEmpty = dashboardData.tasks.length === 0 && dashboardData.events.length === 0
 
     return (
-      <>
-        <CheckInSidebar
-          events={pendingCheckInEvents}
-          calendars={calendars}
-          onEventApproved={handleEventApproved}
-        />
-        <WhatToDoNow currentTask={dashboardData?.currentTask} />
-      </>
-    )
-  }
-
-  return (
-    <div className="h-screen overflow-hidden p-3 text-foreground md:p-4">
-      <div className="max-w-[1600px] mx-auto h-full flex flex-col">
-        {/* Header */}
-        <DashboardHeader 
-          onToggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)}
-          onOpenCalendars={handleOpenCalendarsSidebar}
-          authControls={<AuthControls />}
-        />
-
-        {/* Calendars Sidebar - Slide-in from left */}
-        <CalendarsSidebar
-          isOpen={calendarsSidebarOpen}
-          onClose={() => setCalendarsSidebarOpen(false)}
-          calendars={calendars}
-          onCalendarsChange={setCalendars}
-          onSelectCalendar={setActiveCalendarId}
-          activeCalendarId={activeCalendarId}
-        />
-
-        {/* Mobile Navigation Menu */}
-        {mobileMenuOpen && (
-          <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-xl md:hidden">
-            <div className="flex items-center justify-between border-b border-border p-4">
-              <h2 className="text-base font-bold text-foreground">Navigation</h2>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setMobileMenuOpen(false)}
-                className="text-muted-foreground hover:text-foreground p-2"
-              >
-                <X className="w-5 h-5" />
-              </Button>
-            </div>
-            <div className="p-4 space-y-2">
-              {[
-                { id: "command" as const, label: "Command Center" },
-                { id: "schedule" as const, label: "Schedule" },
-                { id: "status" as const, label: "Status" },
-              ].map((section) => (
-                <Button
-                  key={section.id}
-                  variant={mobileSection === section.id ? "default" : "ghost"}
-                  className={`w-full justify-start text-sm font-semibold ${
-                    mobileSection === section.id
-                      ? "bg-rose-300 text-rose-950 shadow-sm hover:bg-rose-300"
-                      : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-                  }`}
-                  onClick={() => {
-                    setMobileSection(section.id)
-                    setMobileMenuOpen(false)
-                  }}
-                >
-                  {section.label}
-                </Button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Mobile Section Navigation */}
-        <div className="mb-3 flex gap-1 rounded-2xl border border-white/8 bg-white/[0.04] p-1 md:hidden">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleOpenCalendarsSidebar}
-            className="text-muted-foreground hover:text-foreground h-7 w-9 p-0"
-          >
-            <Book className="w-4 h-4" />
-          </Button>
-          {[
-            { id: "command" as const, label: "Command" },
-            { id: "schedule" as const, label: "Schedule" },
-            { id: "status" as const, label: "Status" },
-          ].map((section) => (
-            <Button
-              key={section.id}
-              variant={mobileSection === section.id ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setMobileSection(section.id)}
-              className={`flex-1 text-sm font-semibold ${
-                mobileSection === section.id
-                  ? "bg-rose-300 text-rose-950 text-xs h-7 font-semibold shadow-sm hover:bg-rose-300"
-                  : "text-muted-foreground hover:text-foreground text-xs h-7 font-semibold"
-              }`}
-            >
-              {section.label}
-            </Button>
-          ))}
+      <div className="flex min-h-0 flex-1 flex-col gap-3">
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          <StatPill icon={ListTodo} label="Tasks" value={dashboardData.stats.tasks} />
+          <StatPill icon={CalendarDays} label="Loose" value={dashboardData.stats.unscheduled} />
+          <StatPill icon={Brain} label="Memory" value={dashboardData.stats.memories} />
+          <StatPill icon={Database} label="Sources" value={dashboardData.stats.sources} />
         </div>
 
-        {/* Mobile Content */}
-        <div className="md:hidden flex-1 overflow-auto">
-          {mobileSection === "command" && (
-            <div className="flex flex-col gap-3 h-full overflow-auto">
-              <MasterInput tasks={tasks} />
-              <WorkspaceSnapshot stats={dashboardData?.stats} />
-              <PanelTabs activeTab={activePanelTab} onTabChange={setActivePanelTab} />
-              {renderLeftPanelContent()}
-            </div>
-          )}
-          {mobileSection === "schedule" && (
-            <div className="h-full">
-              <ScheduleView 
-                visibleCalendarIds={visibleCalendarIds}
-                calendars={calendars}
-                events={mergedScheduleEvents}
-                tasks={tasks}
-                onToggleTaskComplete={handleToggleTaskComplete}
-                plannerStatus={plannerStatus}
-                plannerSummary={plannerSummary}
-                onSchedule={handleSchedule}
-                isScheduling={isScheduling}
-              />
-            </div>
-          )}
-          {mobileSection === "status" && (
-            <div className="space-y-3">
-              <StatusPanel stats={dashboardData?.stats} />
+        {isEmpty ? (
+          <div className="rounded-md border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
+            Empty account. Add a task or sync Google to start.
+          </div>
+        ) : null}
+
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_390px]">
+          <div className="min-h-[560px] xl:min-h-0">
+            <ScheduleView
+              calendars={calendars}
+              visibleCalendarIds={visibleCalendarIds}
+              events={dashboardData.events}
+              tasks={dashboardData.tasks}
+              onToggleTaskComplete={handleToggleTaskComplete}
+              plannerStatus={plannerStatus}
+              plannerSummary={plannerSummary}
+              onSchedule={() => handleSchedule()}
+              isScheduling={isScheduling}
+            />
+          </div>
+
+          <div className="flex min-h-0 flex-col gap-3">
+            <MasterInput tasks={dashboardData.tasks} />
+            {pendingCheckInEvents.length > 0 ? (
               <CheckInSidebar
                 events={pendingCheckInEvents}
                 calendars={calendars}
                 onEventApproved={handleEventApproved}
               />
-            </div>
-          )}
-        </div>
-
-        {/* Desktop Main Content Grid - two-panel layout with task popover */}
-        <div className="hidden md:block flex-1 overflow-hidden">
-          <ResizablePanelGroup
-            direction="horizontal"
-            autoSaveId="dashboard-panels-main"
-            className="h-full w-full gap-3"
-          >
-            <ResizablePanel defaultSize={34} minSize={24} maxSize={44}>
-              <div className="h-full overflow-auto pr-1">
-                <div className="flex flex-col gap-3">
-                  <MasterInput tasks={tasks} />
-                  <WorkspaceSnapshot stats={dashboardData?.stats} />
-                  <PanelTabs activeTab={activePanelTab} onTabChange={setActivePanelTab} />
-                  {renderLeftPanelContent()}
-                </div>
-              </div>
-            </ResizablePanel>
-
-            <ResizableHandle withHandle className="mx-1" />
-
-            <ResizablePanel defaultSize={66} minSize={40}>
-              <div className="h-full overflow-hidden">
-                <ScheduleView 
-                  visibleCalendarIds={visibleCalendarIds}
-                  calendars={calendars}
-                  events={mergedScheduleEvents}
-                  tasks={tasks}
-                  onToggleTaskComplete={handleToggleTaskComplete}
-                  plannerStatus={plannerStatus}
-                  plannerSummary={plannerSummary}
-                  onSchedule={handleSchedule}
-                  isScheduling={isScheduling}
-                />
-              </div>
-            </ResizablePanel>
-          </ResizablePanelGroup>
+            ) : null}
+            <TaskManager
+              mode="all"
+              calendars={calendars}
+              tasks={dashboardData.tasks}
+              scheduleEvents={dashboardData.events}
+              errorMessage={taskErrorMessage}
+              onClearError={() => setTaskErrorMessage("")}
+              onCreateTask={handleCreateTask}
+              onUpdateTask={handleUpdateTask}
+              onDeleteTask={handleDeleteTask}
+            />
+          </div>
         </div>
       </div>
-    </div>
+    )
+  }
+
+  return (
+    <main className="h-screen overflow-hidden bg-background text-foreground">
+      <div className="mx-auto flex h-full max-w-[1680px] gap-3 p-3">
+        <aside className="hidden w-12 shrink-0 flex-col items-center gap-2 rounded-lg border border-border bg-card p-2 md:flex">
+          <Button
+            size="icon"
+            variant="ghost"
+            aria-label="Calendars"
+            title="Calendars"
+            onClick={() => setCalendarsSidebarOpen(true)}
+          >
+            <PanelLeft className="h-4 w-4" aria-hidden="true" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            aria-label="Refresh"
+            title="Refresh"
+            onClick={() => loadDashboard(true)}
+            disabled={isRefreshing}
+          >
+            {isRefreshing ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <RefreshCw className="h-4 w-4" aria-hidden="true" />
+            )}
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            aria-label="Schedule"
+            title="Schedule"
+            onClick={() => handleSchedule()}
+            disabled={isScheduling || !dashboard}
+          >
+            {isScheduling ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <CalendarDays className="h-4 w-4" aria-hidden="true" />
+            )}
+          </Button>
+        </aside>
+
+        <section className="flex min-w-0 flex-1 flex-col gap-3">
+          <header className="flex h-auto shrink-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background">
+                <Sparkles className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="truncate text-sm font-semibold text-foreground">JARVIS</h1>
+                <p className="truncate text-[11px] text-muted-foreground">Secretary scheduler</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                size="icon"
+                variant="ghost"
+                aria-label="Calendars"
+                title="Calendars"
+                onClick={() => setCalendarsSidebarOpen(true)}
+                className="md:hidden"
+              >
+                <PanelLeft className="h-4 w-4" aria-hidden="true" />
+              </Button>
+              <AuthControls />
+            </div>
+          </header>
+
+          {renderContent()}
+        </section>
+      </div>
+
+      <CalendarsSidebar
+        isOpen={calendarsSidebarOpen}
+        onClose={() => setCalendarsSidebarOpen(false)}
+        calendars={calendars}
+        onCalendarsChange={setCalendars}
+      />
+    </main>
   )
 }

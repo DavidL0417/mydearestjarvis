@@ -1,35 +1,54 @@
-// ##### BACKEND API #####
-// DO NOT MODIFY UNLESS BACKEND OWNER
-
+import { TASKS_CALENDAR_ID } from "@/lib/task-calendar-constants"
 import type {
   CalendarSource,
   CalendarSyncPreference,
   CheckInInsertRow,
   CheckInRequest,
+  MemoryEntrySummary,
+  MemoryImportance,
+  MemoryItemRow,
   OnboardingTaskInput,
   PreferredCheckInMode,
   Priority,
   ScheduleEvent,
   ScheduleEventInput,
+  ScheduleEventInsertRow,
   ScheduleEventRow,
   ScheduleEventSource,
+  SourceSnapshotRow,
+  SourceSnapshotSummary,
   SyncOrigin,
   Task,
   TaskInsertRow,
   TaskRow,
   TaskStatus,
   TaskUpdateRow,
-  UserIntegration,
-  UserIntegrationRow,
   UserCalendar,
   UserCalendarRow,
-  UserProfile,
+  UserIntegration,
+  UserIntegrationRow,
   UserPreferences,
   UserPreferencesRow,
   UserPreferencesUpsertRow,
+  UserProfile,
   UserRow,
 } from "@/types"
-import { TASKS_CALENDAR_ID } from "@/lib/task-calendar-constants"
+
+export const USER_PROFILE_SELECT = "id, email, name, avatar_url, created_at, updated_at"
+export const PREFERENCES_SELECT =
+  "id, user_id, timezone, sleep_pattern, peak_energy_window, procrastination_pattern, workday_start, workday_end, default_task_duration_minutes, break_duration_minutes, preferred_focus_block_minutes, preferred_checkin_mode, calendar_id, created_at, updated_at"
+export const TASK_SELECT =
+  "id, user_id, title, description, deadline, duration_minutes, priority, status, scheduled_for, created_at, updated_at, is_immutable, all_day, calendar_id, tags, source_snapshot_id"
+export const SCHEDULE_EVENT_SELECT =
+  "id, user_id, task_id, title, starts_at, ends_at, source, priority, status, location, external_event_id, gcal_event_id, last_synced_from, created_at, updated_at, is_immutable, is_checked_in, all_day, calendar_id"
+export const USER_CALENDAR_SELECT =
+  "id, user_id, calendar_key, name, color, source, google_calendar_id, remote_name, is_visible, is_immutable, sync_preference, is_task_calendar, created_at, updated_at"
+export const USER_INTEGRATION_SELECT =
+  "id, user_id, provider, provider_account_email, provider_user_id, status, selected_calendar_id, last_synced_at, created_at, updated_at"
+export const MEMORY_ITEM_SELECT =
+  "id, user_id, kind, category, content, importance, importance_note, confidence, source_label, source_ref, status, supersedes_id, expires_at, created_at, updated_at"
+export const SOURCE_SNAPSHOT_SELECT =
+  "id, user_id, source, source_ref, captured_at, freshness, summary, payload, created_at"
 
 function normalizeNullableText(value: string | null | undefined): string | null {
   if (!value) {
@@ -46,12 +65,7 @@ function normalizeDateTime(value: string | null | undefined): string | null {
   }
 
   const parsed = new Date(value)
-
-  if (Number.isNaN(parsed.getTime())) {
-    return value
-  }
-
-  return parsed.toISOString()
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString()
 }
 
 function normalizeTags(tags: string[] | null | undefined): string[] {
@@ -114,11 +128,18 @@ function normalizeCalendarSyncPreference(
   return "active"
 }
 
+function normalizeMemoryImportance(value: MemoryImportance | string | null | undefined): MemoryImportance {
+  if (value === "low" || value === "high" || value === "critical") {
+    return value
+  }
+
+  return "medium"
+}
+
 function normalizeTimeValue(value: string | null | undefined, fallback: string) {
   return value?.slice(0, 5) || fallback
 }
 
-// Mapper utilities centralize all DB row <-> app model translation.
 export function mapTaskRowToTask(row: TaskRow): Task {
   return {
     id: row.id,
@@ -155,10 +176,6 @@ export function mapUserIntegrationRowToUserIntegration(row: UserIntegrationRow):
     provider: row.provider,
     providerAccountEmail: normalizeNullableText(row.provider_account_email),
     providerUserId: normalizeNullableText(row.provider_user_id),
-    accessToken: normalizeNullableText(row.access_token),
-    refreshToken: normalizeNullableText(row.refresh_token),
-    expiresAt: normalizeNullableText(row.expires_at),
-    scope: normalizeNullableText(row.scope),
     status: row.status,
     selectedCalendarId: normalizeNullableText(row.selected_calendar_id),
     lastSyncedAt: normalizeNullableText(row.last_synced_at),
@@ -359,6 +376,27 @@ export function mapScheduleEventInputToScheduleEvent(
   }
 }
 
+export function mapScheduleEventToInsert(event: ScheduleEvent, userId = event.userId): ScheduleEventInsertRow {
+  return {
+    user_id: userId,
+    task_id: event.taskId,
+    title: event.title,
+    starts_at: event.start,
+    ends_at: event.end,
+    source: normalizeEventSource(event.source),
+    priority: normalizePriority(event.priority),
+    status: event.status,
+    location: normalizeNullableText(event.location),
+    external_event_id: normalizeNullableText(event.externalEventId),
+    gcal_event_id: normalizeNullableText(event.gcalEventId),
+    last_synced_from: normalizeSyncOrigin(event.lastSyncedFrom),
+    is_immutable: event.isImmutable,
+    is_checked_in: event.isCheckedIn,
+    all_day: event.allDay,
+    calendar_id: normalizeNullableText(event.calendarId),
+  }
+}
+
 export function mapCheckInPayloadToInsert(
   payload: CheckInRequest,
   userId: string,
@@ -367,11 +405,36 @@ export function mapCheckInPayloadToInsert(
   return {
     user_id: userId,
     task_id: payload.activeTaskId ?? null,
+    event_id: payload.eventId ?? null,
     mood: payload.mood ?? null,
     energy: payload.energy ?? null,
     outcome,
     note: normalizeNullableText(payload.note),
     blockers: payload.blockers?.map((blocker) => blocker.trim()).filter(Boolean) || [],
+  }
+}
+
+export function mapMemoryItemRowToSummary(row: MemoryItemRow): MemoryEntrySummary {
+  return {
+    id: row.id,
+    kind: row.kind,
+    category: row.category,
+    insight: row.content,
+    importance: normalizeMemoryImportance(row.importance),
+    importanceNote: normalizeNullableText(row.importance_note),
+    source: row.source_label,
+    confidence: row.confidence,
+    createdAt: row.created_at,
+  }
+}
+
+export function mapSourceSnapshotRowToSummary(row: SourceSnapshotRow): SourceSnapshotSummary {
+  return {
+    id: row.id,
+    source: row.source,
+    freshness: row.freshness,
+    summary: row.summary,
+    capturedAt: row.captured_at,
   }
 }
 
@@ -390,5 +453,3 @@ export function getCheckInModeFromCount(checkInCount: number): PreferredCheckInM
 
   return "active"
 }
-
-// ##### END BACKEND #####

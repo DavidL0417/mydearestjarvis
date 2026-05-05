@@ -1,11 +1,12 @@
-// ##### BACKEND API #####
-// DO NOT MODIFY UNLESS BACKEND OWNER
-
 import { z } from "zod"
 
-import { preferredCheckInModeSchema } from "@/schemas/common"
+import {
+  memoryEntrySummarySchema,
+  preferredCheckInModeSchema,
+  sourceSnapshotSummarySchema,
+} from "@/schemas/common"
 
-export const assistantToolStatusSchema = z.enum(["completed", "clarification", "error"])
+export const assistantToolStatusSchema = z.enum(["completed", "clarification", "error", "pending_approval"])
 
 export const assistantToolCallResultSchema = z.object({
   id: z.string().min(1),
@@ -28,15 +29,6 @@ export const availabilityContextSchema = z.object({
   availabilitySummary: z.string().min(1),
 })
 
-export const memoryEntrySummarySchema = z.object({
-  id: z.string().uuid(),
-  category: z.string().min(1),
-  insight: z.string().min(1),
-  source: z.string().min(1),
-  confidence: z.number().nullable(),
-  createdAt: z.string().datetime({ offset: true }),
-})
-
 export const assistantContextDataSchema = z.object({
   availability: availabilityContextSchema,
   availabilityWindows: z.array(
@@ -48,6 +40,7 @@ export const assistantContextDataSchema = z.object({
     }),
   ),
   memoryEntries: z.array(memoryEntrySummarySchema),
+  sourceSnapshots: z.array(sourceSnapshotSummarySchema),
   memorySummary: z.string().min(1),
 })
 
@@ -92,5 +85,3 @@ export type AssistantContextDataInput = z.infer<typeof assistantContextDataSchem
 export type AssistantMessageResponseInput = z.infer<typeof assistantMessageResponseSchema>
 export type AssistantContextResponseInput = z.infer<typeof assistantContextResponseSchema>
 export type AssistantConversationEntryInput = z.infer<typeof assistantConversationEntrySchema>
-
-// ##### END BACKEND #####

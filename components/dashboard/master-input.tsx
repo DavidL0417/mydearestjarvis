@@ -7,7 +7,7 @@ import remarkGfm from "remark-gfm"
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import type {
   AssistantContextResponse,
@@ -26,14 +26,6 @@ type TranscriptEntry = {
   clarification?: string | null
   error?: string | null
 }
-
-const ACTION_LABELS = [
-  "Create, edit, delete, and reschedule tasks",
-  "Create, move, rename, or delete events",
-  "Remember and forget long-term instructions",
-  "Show and update work-hour / no-work context",
-  "Schedule or replan around the current calendar",
-]
 
 const MAX_HISTORY_ENTRIES = 8
 
@@ -61,13 +53,13 @@ function buildIntroFromTaskContext(tasks: Task[]) {
       .map((task) => task.title)
 
     if (upcomingTitles.length > 0) {
-      return `I see ${tasks.length} live tasks right now, including ${formatTaskTitles(upcomingTitles)}. Tell me what to add, move, delete, remember, or replan.`
+      return `I see ${tasks.length} tasks, including ${formatTaskTitles(upcomingTitles)}.`
     }
 
-    return `I see ${tasks.length} live tasks right now. Tell me what to add, move, delete, remember, or replan.`
+    return `I see ${tasks.length} tasks.`
   }
 
-  return "Secretary console ready. Tell me what to add, move, delete, remember, or replan."
+  return "Ready."
 }
 
 function ToolCallReceipt({ toolCalls }: { toolCalls: AssistantMessageResponse["toolCalls"] }) {
@@ -83,7 +75,7 @@ function ToolCallReceipt({ toolCalls }: { toolCalls: AssistantMessageResponse["t
           className={`rounded-lg border px-3 py-2 ${
             toolCall.status === "completed"
               ? "border-emerald-500/30 bg-emerald-500/10"
-              : toolCall.status === "clarification"
+              : toolCall.status === "clarification" || toolCall.status === "pending_approval"
                 ? "border-amber-500/30 bg-amber-500/10"
                 : "border-red-500/30 bg-red-500/10"
           }`}
@@ -360,16 +352,13 @@ export function MasterInput({
   }
 
   return (
-    <Card className="flex flex-col overflow-hidden border-white/10 bg-[linear-gradient(140deg,rgba(15,17,26,0.97),rgba(24,29,42,0.88))] shadow-[0_22px_50px_rgba(0,0,0,0.24)]">
+    <Card className="flex flex-col overflow-hidden border-border bg-card">
       <CardHeader className="p-4 pb-3">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <CardTitle className="text-sm font-bold text-foreground">Master Input</CardTitle>
-            <CardDescription className="mt-1 text-xs text-muted-foreground font-medium leading-tight">
-              JARVIS plans to-dos according to natural-language input, just like a secretary.
-            </CardDescription>
+            <CardTitle className="text-sm font-semibold text-foreground">Master Input</CardTitle>
           </div>
-          <div className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+          <div className="rounded-md border border-border bg-background px-2 py-1 text-[10px] font-semibold uppercase text-muted-foreground">
             {status === "submitting" ? "Thinking" : "Ready"}
           </div>
         </div>
@@ -377,7 +366,7 @@ export function MasterInput({
       <CardContent className="flex flex-col gap-3 p-4 pt-0">
         <div
           ref={transcriptRef}
-          className="h-[240px] overflow-y-auto rounded-2xl border border-white/10 bg-black/15"
+          className="h-[240px] overflow-y-auto rounded-md border border-border bg-background/50"
         >
           <div className="space-y-3 p-4">
             {transcript.map((entry) => (
@@ -385,8 +374,8 @@ export function MasterInput({
                 <div
                   className={`max-w-[92%] rounded-2xl px-3 py-2 ${
                     entry.role === "user"
-                      ? "bg-gradient-to-r from-orange-300 via-rose-300 to-fuchsia-300 text-slate-950 shadow-[0_12px_30px_rgba(251,146,60,0.18)]"
-                      : "border border-white/10 bg-white/[0.04] text-foreground backdrop-blur-sm"
+                      ? "bg-primary text-primary-foreground"
+                      : "border border-border bg-card text-foreground"
                   }`}
                 >
                   {entry.role === "assistant" ? (
@@ -415,7 +404,7 @@ export function MasterInput({
           </div>
         )}
 
-        <Accordion type="multiple" className="rounded-2xl border border-white/10 bg-black/10 px-3">
+        <Accordion type="multiple" className="rounded-md border border-border bg-background/40 px-3">
           <AccordionItem value="availability">
             <AccordionTrigger className="py-3 text-xs font-semibold text-foreground hover:no-underline">
               Availability
@@ -428,7 +417,7 @@ export function MasterInput({
                   </p>
                   <div className="space-y-1">
                     {availabilityLines.map((line) => (
-                      <p key={line} className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-[11px] text-foreground">
+                      <p key={line} className="rounded-md border border-border bg-card px-3 py-2 text-[11px] text-foreground">
                         {line}
                       </p>
                     ))}
@@ -466,10 +455,10 @@ export function MasterInput({
               </p>
               <div className="space-y-2">
                 {(context?.memoryEntries || []).map((entry) => (
-                  <div key={entry.id} className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2">
+                  <div key={entry.id} className="rounded-md border border-border bg-card px-3 py-2">
                     <p className="text-xs text-foreground">{entry.insight}</p>
                     <p className="mt-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-                      {entry.category} • {new Date(entry.createdAt).toLocaleDateString()}
+                      {entry.category} - {new Date(entry.createdAt).toLocaleDateString()}
                     </p>
                   </div>
                 ))}
@@ -479,24 +468,9 @@ export function MasterInput({
               </div>
             </AccordionContent>
           </AccordionItem>
-
-          <AccordionItem value="actions">
-            <AccordionTrigger className="py-3 text-xs font-semibold text-foreground hover:no-underline">
-              Actions
-            </AccordionTrigger>
-            <AccordionContent>
-              <div className="space-y-2">
-                {ACTION_LABELS.map((action) => (
-                  <p key={action} className="text-[11px] text-foreground">
-                    {action}
-                  </p>
-                ))}
-              </div>
-            </AccordionContent>
-          </AccordionItem>
         </Accordion>
 
-        <div className="rounded-2xl border border-white/10 bg-black/15 p-3">
+        <div className="rounded-md border border-border bg-background/50 p-3">
           <Textarea
             placeholder="Tell your secretary what changed..."
             value={message}
@@ -506,14 +480,12 @@ export function MasterInput({
             className="min-h-[72px] resize-none border-0 bg-transparent px-1 text-xs text-foreground shadow-none focus-visible:ring-0"
           />
           <div className="mt-2 flex items-center justify-between gap-2">
-            <p className="text-[11px] text-muted-foreground">
-              Example: move lunch with Cindy to 1pm, remember no work after 10pm, then replan tomorrow.
-            </p>
+            <p className="text-[11px] text-muted-foreground">Enter to send.</p>
             <Button
               onClick={handleSubmit}
               disabled={status === "submitting"}
               aria-label="Send secretary request"
-              className="h-8 shrink-0 bg-gradient-to-r from-orange-300 via-rose-300 to-fuchsia-300 px-4 text-xs font-semibold text-slate-950 hover:from-orange-300 hover:via-rose-300 hover:to-fuchsia-300"
+              className="h-8 shrink-0 px-4 text-xs font-semibold"
             >
               {status === "submitting" ? "Thinking..." : "Send"}
             </Button>

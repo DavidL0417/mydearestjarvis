@@ -1,19 +1,28 @@
-// ##### BACKEND API #####
-// DO NOT MODIFY UNLESS BACKEND OWNER
-
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-import { mapPreferencesRowToPreferences, mapScheduleEventRowToScheduleEvent, mapTaskRowToTask } from "@/lib/data/mappers"
 import { buildMemorySummaryMarkdown, deriveAvailabilityWindowsFromScheduleContext } from "@/lib/ai/claude"
-import { loadGoogleCalendarEventsForUser } from "@/lib/google-calendar-events"
-import { createPlaceholderCalendarEvents } from "@/lib/mock-calendar-events"
-import { runScheduleEventsSelectWithCompat } from "@/lib/supabase/schema-compat"
+import {
+  mapMemoryItemRowToSummary,
+  mapPreferencesRowToPreferences,
+  mapScheduleEventRowToScheduleEvent,
+  mapSourceSnapshotRowToSummary,
+  mapTaskRowToTask,
+  MEMORY_ITEM_SELECT,
+  PREFERENCES_SELECT,
+  SCHEDULE_EVENT_SELECT,
+  SOURCE_SNAPSHOT_SELECT,
+  TASK_SELECT,
+} from "@/lib/data/mappers"
 import type {
   AssistantContextData,
   MemoryEntrySummary,
+  MemoryItemRow,
   ScheduleEvent,
   ScheduleEventRow,
+  SourceSnapshotRow,
+  SourceSnapshotSummary,
   Task,
+  TaskRow,
   UserPreferences,
   UserPreferencesRow,
 } from "@/types"
@@ -42,11 +51,8 @@ export interface AssistantRuntimeContext {
   tasks: Task[]
   events: ScheduleEvent[]
   memoryEntries: MemoryEntrySummary[]
+  sourceSnapshots: SourceSnapshotSummary[]
   context: AssistantContextData
-}
-
-function getEventIdentity(event: ScheduleEvent) {
-  return [event.calendarId ?? "", event.title, event.start, event.end, event.location ?? ""].join("::")
 }
 
 export function buildFallbackAssistantContextData(userId = "00000000-0000-4000-8000-000000000000"): AssistantContextData {
@@ -67,56 +73,54 @@ export function buildFallbackAssistantContextData(userId = "00000000-0000-4000-8
       defaultTaskDurationMinutes: preferences.defaultTaskDurationMinutes,
       breakDurationMinutes: preferences.breakDurationMinutes,
       preferredFocusBlockMinutes: preferences.preferredFocusBlockMinutes,
-      availabilitySummary: "Availability context is unavailable right now.",
+      availabilitySummary: "Availability context is unavailable because the backend request failed.",
     },
     availabilityWindows: [],
     memoryEntries: [],
-    memorySummary: "No saved memory notes yet.",
+    sourceSnapshots: [],
+    memorySummary: "No saved memory notes are available.",
   }
 }
 
-function toMemoryEntrySummary(entry: {
-  id: string
-  category: string
-  insight: string
-  source: string
-  confidence: number | null
-  created_at: string
-}): MemoryEntrySummary {
-  return {
-    id: entry.id,
-    category: entry.category,
-    insight: entry.insight,
-    source: entry.source,
-    confidence: entry.confidence,
-    createdAt: entry.created_at,
-  }
-}
-
-function buildAvailabilitySummary(preferences: UserPreferences, memoryEntries: MemoryEntrySummary[]) {
+function buildAvailabilitySummary(
+  preferences: UserPreferences,
+  memoryEntries: MemoryEntrySummary[],
+  sourceSnapshots: SourceSnapshotSummary[],
+) {
   const lines = [
     `Timezone: ${preferences.timezone}`,
-    `Preferred work hours: ${preferences.workdayStart} to ${preferences.workdayEnd}`,
-    `Default task length: ${preferences.defaultTaskDurationMinutes} minutes`,
-    `Preferred break: ${preferences.breakDurationMinutes} minutes`,
+    `Workday: ${preferences.workdayStart} to ${preferences.workdayEnd}`,
+    `Default block: ${preferences.defaultTaskDurationMinutes} minutes`,
+    `Break: ${preferences.breakDurationMinutes} minutes`,
   ]
 
   if (preferences.peakEnergyWindow) {
-    lines.push(`Peak-energy window: ${preferences.peakEnergyWindow}`)
+    lines.push(`Peak energy: ${preferences.peakEnergyWindow}`)
   }
 
   if (preferences.sleepPattern) {
-    lines.push(`Sleep / no-work note: ${preferences.sleepPattern}`)
+    lines.push(`Sleep/no-work: ${preferences.sleepPattern}`)
   }
 
   if (preferences.procrastinationPattern) {
     lines.push(`Planning friction: ${preferences.procrastinationPattern}`)
   }
 
-  const recentNotes = memoryEntries.slice(0, 3).map((entry) => entry.insight)
+  const criticalNotes = memoryEntries
+    .filter((entry) => entry.importance === "critical" || entry.importance === "high")
+    .slice(0, 3)
+    .map((entry) => entry.insight)
 
-  if (recentNotes.length > 0) {
-    lines.push(`Recent scheduling notes: ${recentNotes.join(" | ")}`)
+  if (criticalNotes.length > 0) {
+    lines.push(`Memory: ${criticalNotes.join(" | ")}`)
+  }
+
+  const failedSources = sourceSnapshots
+    .filter((snapshot) => snapshot.freshness === "failed" || snapshot.freshness === "stale")
+    .slice(0, 2)
+
+  if (failedSources.length > 0) {
+    lines.push(`Source warnings: ${failedSources.map((snapshot) => snapshot.summary).join(" | ")}`)
   }
 
   return lines.join("\n")
@@ -128,7 +132,7 @@ function buildMemorySummary(memoryEntries: MemoryEntrySummary[]) {
   }
 
   return memoryEntries
-    .slice(0, 6)
+    .slice(0, 8)
     .map((entry) => `${entry.insight}${entry.category ? ` (${entry.category})` : ""}`)
     .join("\n")
 }
@@ -137,39 +141,43 @@ export async function loadAssistantRuntimeContext(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<AssistantRuntimeContext> {
-  const [preferencesResult, tasksResult, eventsResult, memoryResult, googleCalendarResult] = await Promise.all([
+  const [preferencesResult, tasksResult, eventsResult, memoryResult, sourceResult] = await Promise.all([
     supabase
       .from("preferences")
-      .select(
-        "id, user_id, timezone, sleep_pattern, peak_energy_window, procrastination_pattern, workday_start, workday_end, default_task_duration_minutes, break_duration_minutes, preferred_focus_block_minutes, preferred_checkin_mode, calendar_id, created_at, updated_at",
-      )
+      .select(PREFERENCES_SELECT)
       .eq("user_id", userId)
       .maybeSingle<UserPreferencesRow>(),
     supabase
       .from("tasks")
-      .select(
-        "id, user_id, title, description, deadline, duration_minutes, priority, status, scheduled_for, created_at, updated_at, is_immutable, all_day, calendar_id, tags",
-      )
+      .select(TASK_SELECT)
       .eq("user_id", userId)
       .order("created_at", { ascending: true }),
-    runScheduleEventsSelectWithCompat(async (selectClause) =>
-      await supabase
-        .from("schedule_events")
-        .select(selectClause)
-        .eq("user_id", userId)
-        .order("starts_at", { ascending: true }),
-    ),
     supabase
-      .from("memory_logs")
-      .select("id, category, insight, source, confidence, created_at")
+      .from("schedule_events")
+      .select(SCHEDULE_EVENT_SELECT)
       .eq("user_id", userId)
+      .order("starts_at", { ascending: true }),
+    supabase
+      .from("memory_items")
+      .select(MEMORY_ITEM_SELECT)
+      .eq("user_id", userId)
+      .eq("status", "active")
       .order("created_at", { ascending: false })
-      .limit(12),
-    loadGoogleCalendarEventsForUser(userId),
+      .limit(20),
+    supabase
+      .from("source_snapshots")
+      .select(SOURCE_SNAPSHOT_SELECT)
+      .eq("user_id", userId)
+      .order("captured_at", { ascending: false })
+      .limit(10),
   ])
 
   const firstError =
-    preferencesResult.error || tasksResult.error || eventsResult.error || memoryResult.error
+    preferencesResult.error ||
+    tasksResult.error ||
+    eventsResult.error ||
+    memoryResult.error ||
+    sourceResult.error
 
   if (firstError) {
     throw new Error(firstError.message)
@@ -180,24 +188,23 @@ export async function loadAssistantRuntimeContext(
     userId,
     ...mapPreferencesRowToPreferences(preferencesResult.data),
   }
-  const tasks = (tasksResult.data || []).map(mapTaskRowToTask)
-  const persistedEvents = ((eventsResult.data || []) as unknown as ScheduleEventRow[]).map(
-    mapScheduleEventRowToScheduleEvent,
+  const tasks = (tasksResult.data || []).map((row) => mapTaskRowToTask(row as TaskRow))
+  const events = (eventsResult.data || []).map((row) =>
+    mapScheduleEventRowToScheduleEvent(row as ScheduleEventRow),
   )
-  const externalEvents = googleCalendarResult.connected
-    ? googleCalendarResult.events
-    : createPlaceholderCalendarEvents(userId)
-  const persistedEventKeys = new Set(persistedEvents.map(getEventIdentity))
-  const events = [
-    ...externalEvents.filter((event) => !persistedEventKeys.has(getEventIdentity(event))),
-    ...persistedEvents,
-  ].sort((left, right) => new Date(left.start).getTime() - new Date(right.start).getTime())
-  const memoryEntries = (memoryResult.data || []).map(toMemoryEntrySummary)
+  const memoryEntries = (memoryResult.data || []).map((row) =>
+    mapMemoryItemRowToSummary(row as MemoryItemRow),
+  )
+  const sourceSnapshots = (sourceResult.data || []).map((row) =>
+    mapSourceSnapshotRowToSummary(row as SourceSnapshotRow),
+  )
   const availabilityWindows = deriveAvailabilityWindowsFromScheduleContext({
     userId,
     tasks,
     preferences,
     hardEvents: events,
+    memoryEntries,
+    sourceSnapshots,
   })
 
   const memorySummaryMarkdown = buildMemorySummaryMarkdown({
@@ -229,6 +236,7 @@ export async function loadAssistantRuntimeContext(
     tasks,
     events,
     memoryEntries,
+    sourceSnapshots,
     context: {
       availability: {
         timezone: preferences.timezone,
@@ -241,13 +249,12 @@ export async function loadAssistantRuntimeContext(
         defaultTaskDurationMinutes: preferences.defaultTaskDurationMinutes,
         breakDurationMinutes: preferences.breakDurationMinutes,
         preferredFocusBlockMinutes: preferences.preferredFocusBlockMinutes,
-        availabilitySummary: buildAvailabilitySummary(preferences, memoryEntries),
+        availabilitySummary: buildAvailabilitySummary(preferences, memoryEntries, sourceSnapshots),
       },
       availabilityWindows,
       memoryEntries,
+      sourceSnapshots,
       memorySummary: buildMemorySummary(memoryEntries) || memorySummaryMarkdown,
     },
   }
 }
-
-// ##### END BACKEND #####

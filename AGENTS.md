@@ -1,158 +1,36 @@
-# Repo Workflow Instructions
+# JARVIS Agent Instructions
 
-These instructions apply to the entire repository unless a deeper `AGENTS.md` adds narrower rules.
+This repo is now a production scheduler/secretary product, not a hackathon coordination workspace.
 
-## AI / Claude Role (David)
+## Start Here
 
-### Scope
+- Read this file before making repo changes.
+- For durable decisions, use the docs in [`docs/decisions`](./docs/decisions).
+- Do not use or recreate worklogs. They were removed intentionally.
+- When architecture, schema, UI policy, or memory behavior changes, update the matching decision doc in the same change.
 
-You are responsible for **scheduling logic only**.
-Work ONLY in:
+## Source Of Truth
 
-lib/ai/claude.ts
+- Supabase schema changes live in `supabase/migrations`.
+- `sql/schema.sql` is a reference snapshot only when present; it is not the migration source of truth.
+- Backend contracts live in `types` and `schemas`; routes and mappers must match those contracts exactly.
+- Do not hide backend, auth, source-refresh, or calendar-sync failures behind placeholder/demo data.
 
-Do NOT modify
-You must NOT modify:
-app/api/**
-lib/supabase/**
-lib/data/**
-schemas/**
-types/**
-components/**
-Do not touch database logic
-Do not touch API routes
-Do not change UI
-Do not rename fields in shared types
+## Product Direction
 
-Your Responsibilities
-Implement these functions:
-generateSchedule(input)
-replanSchedule(input)
-These functions should:
-call Claude
-generate schedules
-handle reasoning / planning logic
+- JARVIS is a secretary-second-brain scheduler: it should combine tasks, calendar context, preferences, source snapshots, memory, and explicit tradeoffs before planning.
+- Priorities are relative. Prefer zero-tradeoff plans that preserve due work, routines, sleep, and commitments when feasible.
+- External sources beyond Google Calendar are modeled for now but not fully integrated in this pass.
 
-Input / Output Contracts
-You MUST use shared types from:
-types/index.ts
-schemas/schedule.ts
-schemas/replan.ts
+## UI Direction
 
-Critical Rule
-Your functions MUST return structured JSON that EXACTLY matches the schema.
-Example:
-{
- "events": [
-   {
-     "taskId": "string",
-     "startTime": "ISO string",
-     "endTime": "ISO string"
-   }
- ],
- "explanation": "optional reasoning"
-}
+- Icon-first, minimal text, compact controls.
+- Use concise empty/error/auth states instead of fake/demo content.
+- Keep the main experience schedule-first and command-friendly.
+- Avoid nested cards, marketing sections, decorative clutter, and explanatory UI copy.
 
-Forbidden
-No free-form text output
-No changing field names
-No adding random fields
-No direct database access
-No direct API calls outside claude.ts
+## Safety
 
-Integration Model
-Your functions will be used like this:
-Frontend → /api/schedule → Backend → Claude (you) → Backend → DB → Frontend
-You are ONLY responsible for the Claude step.
-
-If you need changes
-If you want to:
-change output format
-add new fields
-modify structure
-You MUST coordinate with backend owner first.
-
-
-
-## Always Start Here
-
-- Before making changes, read this file.
-- Before making changes, identify the contributor by name. Use one of:
-  - David
-  - Eric
-  - Cindy
-- Before making changes, read that contributor's worklog within the worklogs folder:
-  - David -> [`WORKLOG-david.md`](./worklogs/WORKLOG-david.md)
-  - Eric -> [`WORKLOG-eric.md`](./worklogs/WORKLOG-eric.md)
-  - Cindy -> [`WORKLOG-cindy.md`](./worklogs/WORKLOG-cindy.md)
-- Those lowercase, hyphenated filenames are the only canonical contributor worklogs.
-- Do not create alternate-cased, underscored, copied, or otherwise duplicate worklog files. If duplicates already exist, merge any unique entries into the canonical file and remove the duplicates.
-- If the task touches integrated work, cross-person handoff context, or recent work combined into `main`, also read [`MAIN_UPDATE_LOG.md`](./worklogs/MAIN_UPDATE_LOG.md) if it exists.
-- Treat each contributor worklog as the canonical day-to-day handoff log for that contributor's current status, recent work, active direction, and user-specific working preferences established during prior sessions. 
-
-## Tentative Tech Stack
-
-- This section is provisional and should be refined as the project solidifies.
-- Current expected stack includes:
-  - Next.js for frontend and backend
-  - TypeScript
-  - GitHub for source control and collaboration
-  - Vercel for hosting and deployment
-  - Other adjacent tooling as the project is finalized
-
-## Contributor Roles
-
-- Use these as coordination defaults, not hard ownership boundaries.
-- Cindy: frontend specialization for onboarding, task input, and check-in UI in `v0`/Next.js
-- Eric: backend and database specialization for Next.js API routes, Supabase schema, auth, and data flow
-- David: AI and calendar specialization for Claude prompting, structured output, replanning logic, and Google Calendar integration
-
-## Continuous Handoff Maintenance
-
-- Keep personal worklogs updated as work progresses across different sessions, users, and contexts.
-- During normal feature work, each contributor updates only their own worklog.
-- When updating a worklog, edit the existing canonical file in place rather than creating a new worklog file.
-- Add a new personal log entry after completing a meaningful unit of work in the repo.
-- Every personal log entry must include:
-  - Timestamp
-  - What is being worked on or what was worked on
-  - Current status or outcome
-  - Immediate next step if there is one
-- Personal entries should make current ownership obvious so simultaneous work is easy to disambiguate.
-- Keep entries brief and high signal. Prefer 2-5 short bullets.
-- Append new entries at the top under the log section so the newest state is easiest to find.
-- Do not rewrite old history unless it is plainly incorrect; add a newer correction entry instead.
-
-## Main Integration Log
-
-- Do not maintain a master day-to-day project worklog during parallel individual work.
-- Use [`MAIN_UPDATE_LOG.md`](./worklogs/MAIN_UPDATE_LOG.md) only when work is actually combined into `main` or otherwise integrated across contributors.
-- Add a summarized integration entry when combined work lands in `main`.
-- Integration entries should capture the overall direction of the project at that merge point, plus immediate next steps if there are any.
-
-## How To Use The Logs
-
-- At the start of a task:
-  - Identify the contributor by name before logging or making changes.
-  - Read the newest entries in that contributor's worklog first.
-  - Use them to understand the latest personal context before exploring code.
-  - Read `MAIN_UPDATE_LOG.md` only when integrated or cross-person context matters.
-- During work:
-  - Follow the repo-specific instructions in any deeper `AGENTS.md` files that apply to touched files.
-  - Keep ownership clear by naming the feature, area, or component being worked on in log entries.
-- At the end of work:
-  - Update that contributor's worklog with a timestamped summary of what changed and what should happen next.
-- On merge or integration to `main`:
-  - Update `MAIN_UPDATE_LOG.md` with a concise summary of the combined result and resulting project direction.
-
-## Style Of Log Entries
-
-- Be concrete, not narrative.
-- Mention actual screens/components/files when useful.
-- Record user direction changes when they materially affect priorities.
-- If work is intentionally deferred, say so explicitly.
-
-## Current Standing Direction
-
-- Prefer structural stability, polish, and coherency over bolting features back on quickly.
-- Stabilize and clarify the current UI before restoring previously removed functionality unless the user redirects priorities.
+- Keep credentials and provider tokens out of exposed public tables.
+- Enable RLS on every exposed public table.
+- Destructive assistant actions and external calendar writes need explicit approval/change-plan handling.

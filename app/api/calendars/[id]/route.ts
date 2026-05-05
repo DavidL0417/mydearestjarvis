@@ -1,10 +1,7 @@
-// ##### BACKEND API #####
-// DO NOT MODIFY UNLESS BACKEND OWNER
-
 import { NextResponse } from "next/server"
 import { z } from "zod"
 
-import { mapUserCalendarRowToUserCalendar } from "@/lib/data/mappers"
+import { mapUserCalendarRowToUserCalendar, USER_CALENDAR_SELECT } from "@/lib/data/mappers"
 import {
   isAuthenticationRequiredError,
   requireAuthenticatedUser,
@@ -20,8 +17,6 @@ import type {
 } from "@/types"
 
 const calendarIdSchema = z.string().uuid()
-const USER_CALENDAR_SELECT =
-  "id, user_id, calendar_key, name, color, source, google_calendar_id, remote_name, is_visible, is_immutable, sync_preference, is_task_calendar, created_at, updated_at"
 
 async function getValidatedCalendarId(params: Promise<{ id: string }>) {
   const { id } = await params
@@ -34,7 +29,7 @@ async function loadCalendar(
   calendarId: string,
 ) {
   const { data, error } = await adminClient
-    .from("user_calendars")
+    .from("calendars")
     .select(USER_CALENDAR_SELECT)
     .eq("id", calendarId)
     .eq("user_id", userId)
@@ -54,7 +49,7 @@ async function hasDuplicateManagedCalendarName(
   excludeId: string,
 ) {
   const { data, error } = await adminClient
-    .from("user_calendars")
+    .from("calendars")
     .select("id")
     .eq("user_id", userId)
     .in("source", ["local", "imported", "task"])
@@ -97,6 +92,10 @@ export async function PATCH(
       return NextResponse.json({ error: "Calendar not found." }, { status: 404 })
     }
 
+    if (existing.source === "google") {
+      return NextResponse.json({ error: "Imported Google calendars are managed by sync." }, { status: 409 })
+    }
+
     if (parsedBody.data.name) {
       const hasDuplicate = await hasDuplicateManagedCalendarName(
         adminClient,
@@ -114,7 +113,7 @@ export async function PATCH(
     }
 
     const { data, error } = await adminClient
-      .from("user_calendars")
+      .from("calendars")
       .update({
         name: parsedBody.data.name?.trim() ?? existing.name,
         color: parsedBody.data.color?.trim() ?? existing.color,
@@ -189,6 +188,10 @@ export async function DELETE(
       )
     }
 
+    if (existing.source === "google") {
+      return NextResponse.json({ error: "Imported Google calendars are removed by disconnect/resync." }, { status: 409 })
+    }
+
     const [scheduleEventUpdate, taskUpdate, deleteResult] = await Promise.all([
       adminClient
         .from("schedule_events")
@@ -207,7 +210,7 @@ export async function DELETE(
         .eq("user_id", user.id)
         .eq("calendar_id", existing.calendar_key),
       adminClient
-        .from("user_calendars")
+        .from("calendars")
         .delete()
         .eq("id", existing.id)
         .eq("user_id", user.id),
@@ -237,5 +240,3 @@ export async function DELETE(
     )
   }
 }
-
-// ##### END BACKEND #####

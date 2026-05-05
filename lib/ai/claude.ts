@@ -122,7 +122,7 @@ export async function generateSchedule(input: SchedulePreparationContext): Promi
   const planningContext = buildPlanningContext(input)
   planningContext.memoryMarkdown = buildMemorySummaryMarkdown({
     preferences: planningContext.preferences,
-    memoryEntries: [],
+    memoryEntries: input.memoryEntries ?? [],
   })
 
   if (planningContext.planningTaskIds.length === 0) {
@@ -990,15 +990,6 @@ function addDaysToDateKey(dateKey: string, days: number) {
   const nextDay = String(next.getUTCDate()).padStart(2, "0")
 
   return `${nextYear}-${nextMonth}-${nextDay}`
-}
-
-function differenceInDateKeys(startDateKey: string, endDateKey: string) {
-  const [startYear, startMonth, startDay] = startDateKey.split("-").map(Number)
-  const [endYear, endMonth, endDay] = endDateKey.split("-").map(Number)
-  const startMs = Date.UTC(startYear, startMonth - 1, startDay)
-  const endMs = Date.UTC(endYear, endMonth - 1, endDay)
-
-  return Math.floor((endMs - startMs) / 86_400_000)
 }
 
 function sortEventsByStart(events: SchedulePlanResult["proposedEvents"]) {

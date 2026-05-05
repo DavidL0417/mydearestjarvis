@@ -264,11 +264,9 @@ export function ScheduleView({
     const today = new Date()
     return new Date(today.getFullYear(), today.getMonth(), 1)
   })
-  const [googleEvents, setGoogleEvents] = useState<ScheduleEvent[]>([])
-  const [isGoogleEventsLoading, setIsGoogleEventsLoading] = useState(true)
+  const [isGoogleEventsLoading, setIsGoogleEventsLoading] = useState(false)
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle")
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null)
-  const [hasFetchedGoogleEvents, setHasFetchedGoogleEvents] = useState(false)
   const [selectedTaskReminder, setSelectedTaskReminder] = useState<CalendarEvent | null>(null)
   const gridScrollRef = useRef<HTMLDivElement | null>(null)
   const hasAutoScrolledRef = useRef(false)
@@ -282,16 +280,13 @@ export function ScheduleView({
     }
   }, [])
 
-  const loadGoogleEvents = useCallback(async (showFeedback: boolean) => {
+  const syncGoogleEvents = useCallback(async () => {
     if (successResetTimeoutRef.current) {
       clearTimeout(successResetTimeoutRef.current)
       successResetTimeoutRef.current = null
     }
 
-    if (showFeedback) {
-      setSyncStatus("syncing")
-    }
-
+    setSyncStatus("syncing")
     setIsGoogleEventsLoading(true)
 
     let didTimeout = false
@@ -301,29 +296,22 @@ export function ScheduleView({
     }, 60_000)
 
     try {
-      const fetchedEvents = await fetchGoogleEvents()
+      await fetchGoogleEvents()
 
       if (didTimeout) {
         return
       }
 
-      setGoogleEvents(fetchedEvents)
-      setHasFetchedGoogleEvents(true)
       setLastSyncedAt(new Date().toISOString())
-
-      if (showFeedback) {
-        setSyncStatus("success")
-        successResetTimeoutRef.current = setTimeout(() => {
-          setSyncStatus("idle")
-        }, 3_000)
-      }
+      window.dispatchEvent(new CustomEvent("jarvis-dashboard-refresh"))
+      setSyncStatus("success")
+      successResetTimeoutRef.current = setTimeout(() => {
+        setSyncStatus("idle")
+      }, 3_000)
     } catch (error) {
       if (!didTimeout) {
         console.error("Failed to fetch Google Events", error)
-
-        if (showFeedback) {
-          setSyncStatus("error")
-        }
+        setSyncStatus("error")
       }
     } finally {
       clearTimeout(timeoutId)
@@ -331,16 +319,12 @@ export function ScheduleView({
     }
   }, [])
 
-  useEffect(() => {
-    void loadGoogleEvents(false)
-  }, [loadGoogleEvents])
-
   const handleSyncWithGoogle = async () => {
     if (syncStatus === "syncing" || isGoogleEventsLoading) {
       return
     }
 
-    await loadGoogleEvents(true)
+    await syncGoogleEvents()
   }
 
   const formatLastSynced = () => {
@@ -465,7 +449,6 @@ export function ScheduleView({
   const events = useMemo(() => {
     const mappedEvents = [
       ...mapScheduleEventsToCalendarEvents(scheduleEvents, displayDates),
-      ...mapScheduleEventsToCalendarEvents(googleEvents, displayDates),
       ...mapTaskReminderEvents(tasks, scheduleEvents, displayDates),
       ...mapTasksToCalendarEvents(tasks, scheduleEvents, displayDates),
     ]
@@ -480,7 +463,7 @@ export function ScheduleView({
           return event.source === "google" && !knownCalendarIds.has(event.calendarId)
         })
       : mappedEvents
-  }, [calendars, displayDates, googleEvents, scheduleEvents, tasks, visibleCalendarIds])
+  }, [calendars, displayDates, scheduleEvents, tasks, visibleCalendarIds])
   const allDayEvents = useMemo(
     () => events.filter((event) => event.allDay),
     [events],
@@ -528,28 +511,6 @@ export function ScheduleView({
     })
     hasAutoScrolledRef.current = true
   }, [displayDates, isGoogleEventsLoading, timedEvents, viewMode])
-
-  // Get day names for the current view
-  const getDayHeaders = () => {
-    const days = []
-    const startDate = new Date(selectedDate)
-
-    const count = viewMode === "1day" ? 1 : viewMode === "3days" ? 3 : 7
-    const today = new Date()
-    for (let i = 0; i < count; i++) {
-      const date = new Date(startDate)
-      date.setDate(startDate.getDate() + i)
-      const isTodayDate = date.getDate() === today.getDate() && 
-                          date.getMonth() === today.getMonth() && 
-                          date.getFullYear() === today.getFullYear()
-      days.push({
-        name: dayNames[date.getDay()],
-        date: date.getDate(),
-        isToday: isTodayDate,
-      })
-    }
-    return days
-  }
 
   const formatDateRange = () => {
     const start = new Date(selectedDate)
@@ -674,7 +635,7 @@ export function ScheduleView({
                 ) : (
                   <RefreshCw className="w-3 h-3 mr-1" />
                 )}
-                Sync with Google
+                Sync
               </Button>
             </div>
             <span className="text-xs text-muted-foreground font-semibold">Planner: {plannerStatus}</span>
@@ -683,11 +644,7 @@ export function ScheduleView({
         <p className="text-[11px] text-muted-foreground leading-tight font-medium">
           Schedule runs only when you click Schedule/Replan. Dragging a block pins it by default.
         </p>
-        {!isGoogleEventsLoading &&
-        hasFetchedGoogleEvents &&
-        googleEvents.length === 0 &&
-        scheduleEvents.length === 0 &&
-        tasks.length === 0 ? (
+        {!isGoogleEventsLoading && scheduleEvents.length === 0 && tasks.length === 0 ? (
           <p className="text-[11px] leading-tight font-medium mt-1 text-muted-foreground">
             No events found.
           </p>

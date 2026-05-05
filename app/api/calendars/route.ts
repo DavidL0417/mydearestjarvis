@@ -1,19 +1,11 @@
-// ##### BACKEND API #####
-// DO NOT MODIFY UNLESS BACKEND OWNER
-
 import { NextResponse } from "next/server"
 
-import { mapUserCalendarRowToUserCalendar } from "@/lib/data/mappers"
+import { mapUserCalendarRowToUserCalendar, USER_CALENDAR_SELECT } from "@/lib/data/mappers"
 import {
   isAuthenticationRequiredError,
   requireAuthenticatedUser,
 } from "@/lib/supabase/auth"
-import {
-  ensureTaskCalendarForUser,
-  getMissingUserCalendarsTableHint,
-  isMissingUserCalendarsTableError,
-  listUserCalendars,
-} from "@/lib/tasks-calendar"
+import { ensureTaskCalendarForUser, listUserCalendars } from "@/lib/tasks-calendar"
 import {
   calendarListResponseSchema,
   calendarMutationResponseSchema,
@@ -27,8 +19,6 @@ import type {
 
 const DEFAULT_CALENDAR_COLOR = "#bfdbfe"
 const MANAGED_SOURCES = ["local", "imported", "task"] as const
-const USER_CALENDAR_SELECT =
-  "id, user_id, calendar_key, name, color, source, google_calendar_id, remote_name, is_visible, is_immutable, sync_preference, is_task_calendar, created_at, updated_at"
 
 async function hasDuplicateManagedCalendarName(
   adminClient: Awaited<ReturnType<typeof requireAuthenticatedUser>>["adminClient"],
@@ -36,7 +26,7 @@ async function hasDuplicateManagedCalendarName(
   name: string,
 ) {
   const { data, error } = await adminClient
-    .from("user_calendars")
+    .from("calendars")
     .select("id")
     .eq("user_id", userId)
     .in("source", [...MANAGED_SOURCES])
@@ -53,15 +43,7 @@ async function hasDuplicateManagedCalendarName(
 export async function GET() {
   try {
     const { user } = await requireAuthenticatedUser()
-    try {
-      await ensureTaskCalendarForUser(user.id)
-    } catch (error) {
-      if (isMissingUserCalendarsTableError(error)) {
-        console.warn(getMissingUserCalendarsTableHint())
-      } else {
-        throw error
-      }
-    }
+    await ensureTaskCalendarForUser(user.id)
     const calendars = await listUserCalendars(user.id)
 
     const payload: CalendarListResponse = {
@@ -131,7 +113,7 @@ export async function POST(request: Request) {
     }
 
     const { data, error } = await adminClient
-      .from("user_calendars")
+      .from("calendars")
       .insert({
         user_id: user.id,
         calendar_key: `calendar-${crypto.randomUUID()}`,
@@ -184,5 +166,3 @@ export async function POST(request: Request) {
     )
   }
 }
-
-// ##### END BACKEND #####

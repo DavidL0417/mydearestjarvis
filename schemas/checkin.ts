@@ -17,6 +17,7 @@ export const checkInRequestSchema = z.object({
   blockers: z.array(z.string().trim().min(1)).optional().default([]),
   note: z.string().max(1000).optional(),
   activeTaskId: z.string().uuid().optional(),
+  eventId: z.string().uuid().nullable().optional(),
 })
 
 export type CheckInRequest = z.infer<typeof checkInRequestSchema>

@@ -1,15 +1,8 @@
-// ##### BACKEND API #####
-// DO NOT MODIFY UNLESS BACKEND OWNER
-
 import type { User as SupabaseAuthUser } from "@supabase/supabase-js"
 
-import { mapUserRowToUserProfile } from "@/lib/data/mappers"
+import { mapUserRowToUserProfile, USER_PROFILE_SELECT } from "@/lib/data/mappers"
 import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server"
-import {
-  ensureTaskCalendarForUser,
-  getMissingUserCalendarsTableHint,
-  isMissingUserCalendarsTableError,
-} from "@/lib/tasks-calendar"
+import { ensureTaskCalendarForUser } from "@/lib/tasks-calendar"
 import type { UserProfile, UserRow } from "@/types"
 
 const FALLBACK_PROFILE_NAME = "JARVIS User"
@@ -34,10 +27,7 @@ function normalizeNullableText(value: string | null | undefined) {
   return trimmed.length > 0 ? trimmed : null
 }
 
-function getPreferredName(
-  authUser: SupabaseAuthUser,
-  overrideName?: string | null,
-) {
+function getPreferredName(authUser: SupabaseAuthUser, overrideName?: string | null) {
   return (
     normalizeNullableText(overrideName) ||
     normalizeNullableText(authUser.user_metadata?.full_name) ||
@@ -48,10 +38,7 @@ function getPreferredName(
   )
 }
 
-function getAvatarUrl(
-  authUser: SupabaseAuthUser,
-  overrideAvatarUrl?: string | null,
-) {
+function getAvatarUrl(authUser: SupabaseAuthUser, overrideAvatarUrl?: string | null) {
   return (
     normalizeNullableText(overrideAvatarUrl) ||
     normalizeNullableText(authUser.user_metadata?.avatar_url) ||
@@ -76,7 +63,7 @@ export async function getOrCreateUserProfile(
 
   const adminClient = createSupabaseAdminClient()
   const { data, error } = await adminClient
-    .from("users")
+    .from("profiles")
     .upsert(
       {
         id: authUser.id,
@@ -87,7 +74,7 @@ export async function getOrCreateUserProfile(
       },
       { onConflict: "id" },
     )
-    .select("id, email, name, avatar_url, created_at, updated_at")
+    .select(USER_PROFILE_SELECT)
     .single<UserRow>()
 
   if (error || !data) {
@@ -95,22 +82,15 @@ export async function getOrCreateUserProfile(
   }
 
   const profile = mapUserRowToUserProfile(data)
-  try {
-    await ensureTaskCalendarForUser(profile.id)
-  } catch (error) {
-    if (isMissingUserCalendarsTableError(error)) {
-      console.warn(getMissingUserCalendarsTableHint())
-    } else {
-      console.warn("Task calendar bootstrap failed during auth profile load.", error)
-    }
-  }
-
+  await ensureTaskCalendarForUser(profile.id)
   return profile
 }
 
-export async function requireAuthenticatedUser(options: {
-  profileOverrides?: UserProfileOverrides
-} = {}) {
+export async function requireAuthenticatedUser(
+  options: {
+    profileOverrides?: UserProfileOverrides
+  } = {},
+) {
   const serverClient = await createSupabaseServerClient()
   const {
     data: { user: authUser },
@@ -130,5 +110,3 @@ export async function requireAuthenticatedUser(options: {
     adminClient: createSupabaseAdminClient(),
   }
 }
-
-// ##### END BACKEND #####

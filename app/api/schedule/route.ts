@@ -1,20 +1,23 @@
-// ##### BACKEND API #####
-// DO NOT MODIFY UNLESS BACKEND OWNER
-
 import { NextResponse } from "next/server"
 
+import { generateSchedule } from "@/lib/ai/claude"
 import {
+  mapMemoryItemRowToSummary,
   mapPreferencesRowToPreferences,
   mapScheduleEventInputToScheduleEvent,
+  mapScheduleEventRowToScheduleEvent,
+  mapSourceSnapshotRowToSummary,
   mapTaskRowToTask,
+  MEMORY_ITEM_SELECT,
+  PREFERENCES_SELECT,
+  SCHEDULE_EVENT_SELECT,
+  SOURCE_SNAPSHOT_SELECT,
+  TASK_SELECT,
 } from "@/lib/data/mappers"
-import { generateSchedule } from "@/lib/ai/claude"
-import { loadGoogleCalendarEventsForUser } from "@/lib/google-calendar-events"
 import {
   isAuthenticationRequiredError,
   requireAuthenticatedUser,
 } from "@/lib/supabase/auth"
-import { runScheduleEventMutationWithCompat } from "@/lib/supabase/schema-compat"
 import { TASKS_CALENDAR_ID } from "@/lib/task-calendar-constants"
 import {
   schedulePlanResultSchema,
@@ -22,7 +25,17 @@ import {
   scheduleRequestSchema,
   scheduleResponseSchema,
 } from "@/schemas/schedule"
-import type { ScheduleEvent, ScheduleEventInsertRow, SchedulePreparationContext, ScheduleResponse } from "@/types"
+import type {
+  MemoryItemRow,
+  ScheduleEvent,
+  ScheduleEventInsertRow,
+  ScheduleEventRow,
+  SchedulePreparationContext,
+  ScheduleResponse,
+  SourceSnapshotRow,
+  TaskRow,
+  UserPreferencesRow,
+} from "@/types"
 
 function getEventIdentity(event: Pick<ScheduleEvent, "calendarId" | "title" | "start" | "end" | "location">) {
   return [event.calendarId ?? "", event.title, event.start, event.end, event.location ?? ""].join("::")
@@ -75,7 +88,7 @@ async function persistSchedulePlan(
     }
   }
 
-  const rowsToUpsert: ScheduleEventInsertRow[] = taskEvents.map((event) => ({
+  const rowsToInsert: ScheduleEventInsertRow[] = taskEvents.map((event) => ({
     user_id: userId,
     task_id: event.taskId,
     title: event.title,
@@ -94,14 +107,8 @@ async function persistSchedulePlan(
     calendar_id: event.calendarId ?? TASKS_CALENDAR_ID,
   }))
 
-  if (rowsToUpsert.length > 0) {
-    const { error } = await runScheduleEventMutationWithCompat(
-      rowsToUpsert,
-      async (payload) =>
-        await adminClient
-          .from("schedule_events")
-          .upsert(payload, { onConflict: "user_id,task_id,source" }),
-    )
+  if (rowsToInsert.length > 0) {
+    const { error } = await adminClient.from("schedule_events").insert(rowsToInsert)
 
     if (error) {
       throw new Error(error.message)
@@ -183,9 +190,7 @@ export async function POST(request: Request) {
 
     let taskQuery = adminClient
       .from("tasks")
-      .select(
-        "id, user_id, title, description, deadline, duration_minutes, priority, status, scheduled_for, created_at, updated_at, is_immutable, all_day, calendar_id, tags",
-      )
+      .select(TASK_SELECT)
       .eq("user_id", user.id)
       .order("created_at", { ascending: true })
 
@@ -193,43 +198,67 @@ export async function POST(request: Request) {
       taskQuery = taskQuery.in("id", parsedBody.data.taskIds)
     }
 
-    const [tasksResult, preferencesResult, googleCalendarResult] = await Promise.all([
+    const [tasksResult, preferencesResult, eventsResult, memoryResult, sourceResult] = await Promise.all([
       taskQuery,
       adminClient
         .from("preferences")
-        .select(
-          "id, user_id, timezone, sleep_pattern, peak_energy_window, procrastination_pattern, workday_start, workday_end, default_task_duration_minutes, break_duration_minutes, preferred_focus_block_minutes, preferred_checkin_mode, calendar_id, created_at, updated_at",
-        )
+        .select(PREFERENCES_SELECT)
         .eq("user_id", user.id)
-        .maybeSingle(),
-      loadGoogleCalendarEventsForUser(user.id),
+        .maybeSingle<UserPreferencesRow>(),
+      adminClient
+        .from("schedule_events")
+        .select(SCHEDULE_EVENT_SELECT)
+        .eq("user_id", user.id)
+        .order("starts_at", { ascending: true }),
+      adminClient
+        .from("memory_items")
+        .select(MEMORY_ITEM_SELECT)
+        .eq("user_id", user.id)
+        .eq("status", "active")
+        .order("created_at", { ascending: false })
+        .limit(20),
+      adminClient
+        .from("source_snapshots")
+        .select(SOURCE_SNAPSHOT_SELECT)
+        .eq("user_id", user.id)
+        .order("captured_at", { ascending: false })
+        .limit(10),
     ])
 
-    if (tasksResult.error || preferencesResult.error) {
-      throw new Error(tasksResult.error?.message || preferencesResult.error?.message || "Failed to read scheduling context.")
+    if (
+      tasksResult.error ||
+      preferencesResult.error ||
+      eventsResult.error ||
+      memoryResult.error ||
+      sourceResult.error
+    ) {
+      throw new Error(
+        tasksResult.error?.message ||
+          preferencesResult.error?.message ||
+          eventsResult.error?.message ||
+          memoryResult.error?.message ||
+          sourceResult.error?.message ||
+          "Failed to read scheduling context.",
+      )
     }
 
-    const selectedTaskIds = new Set((tasksResult.data || []).map((task) => task.id))
+    const selectedTaskIds = new Set((tasksResult.data || []).map((task) => (task as TaskRow).id))
     const requestHardEvents = parsedBody.data.hardEvents
-      .filter((event) => {
-        if (!event.taskId) {
-          return true
-        }
-
-        return !selectedTaskIds.has(event.taskId)
-      })
+      .filter((event) => !event.taskId || !selectedTaskIds.has(event.taskId))
       .map((event) => mapScheduleEventInputToScheduleEvent(event, user.id))
     const requestHardEventKeys = new Set(requestHardEvents.map(getEventIdentity))
-    const allHardEvents = [
-      ...requestHardEvents,
-      ...googleCalendarResult.events.filter((event) => !requestHardEventKeys.has(getEventIdentity(event))),
-    ]
+    const persistedHardEvents = (eventsResult.data || [])
+      .map((event) => mapScheduleEventRowToScheduleEvent(event as ScheduleEventRow))
+      .filter((event) => !event.taskId || !selectedTaskIds.has(event.taskId))
+      .filter((event) => !requestHardEventKeys.has(getEventIdentity(event)))
 
     const scheduleContext: SchedulePreparationContext = {
       userId: user.id,
-      tasks: (tasksResult.data || []).map(mapTaskRowToTask),
+      tasks: (tasksResult.data || []).map((row) => mapTaskRowToTask(row as TaskRow)),
       preferences: mapPreferencesRowToPreferences(preferencesResult.data),
-      hardEvents: allHardEvents,
+      hardEvents: [...requestHardEvents, ...persistedHardEvents],
+      memoryEntries: (memoryResult.data || []).map((row) => mapMemoryItemRowToSummary(row as MemoryItemRow)),
+      sourceSnapshots: (sourceResult.data || []).map((row) => mapSourceSnapshotRowToSummary(row as SourceSnapshotRow)),
     }
 
     const parsedContext = schedulePreparationContextSchema.safeParse(scheduleContext)
@@ -244,8 +273,6 @@ export async function POST(request: Request) {
       )
     }
 
-    // Future flow: frontend -> /api/schedule -> supabase read -> generateSchedule() -> validate -> DB write.
-    // `isImmutable` and `calendarId` are threaded through the planner context now, but the stub planner only preserves them in-memory.
     const plannerResult = await generateSchedule(parsedContext.data)
     const parsedPlannerResult = schedulePlanResultSchema.safeParse(plannerResult)
 
@@ -268,7 +295,7 @@ export async function POST(request: Request) {
 
     const responsePayload: ScheduleResponse = {
       success: true,
-      message: "Schedule generated from Supabase context and persisted back into Task Calendar blocks.",
+      message: "Schedule generated from Supabase context and persisted.",
       context: {
         userId: user.id,
         taskCount: parsedContext.data.tasks.length,
@@ -289,6 +316,7 @@ export async function POST(request: Request) {
         { status: 500 },
       )
     }
+
     return NextResponse.json(parsedResponse.data)
   } catch (error) {
     if (isAuthenticationRequiredError(error)) {
@@ -304,5 +332,3 @@ export async function POST(request: Request) {
     )
   }
 }
-
-// ##### END BACKEND #####

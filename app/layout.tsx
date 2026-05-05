@@ -7,9 +7,8 @@ const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'SecretaryScheduler - AI Productivity Dashboard',
-  description: 'AI-powered scheduling and task management dashboard',
-  generator: 'v0.app',
+  title: 'JARVIS',
+  description: 'Secretary scheduler',
   icons: {
     icon: [
       {

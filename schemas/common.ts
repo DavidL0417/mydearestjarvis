@@ -1,6 +1,3 @@
-// ##### BACKEND API #####
-// DO NOT MODIFY UNLESS BACKEND OWNER
-
 import { z } from "zod"
 
 export const prioritySchema = z.enum(["low", "medium", "high"])
@@ -13,11 +10,22 @@ export const checkInEnergySchema = z.enum(["low", "medium", "high"])
 export const syncOriginSchema = z.enum(["local", "gcal"])
 export const calendarSourceSchema = z.enum(["local", "google", "imported", "task"])
 export const calendarSyncPreferenceSchema = z.enum(["active", "pending", "ignored"])
+export const memoryKindSchema = z.enum([
+  "preference",
+  "task_context",
+  "source_observation",
+  "candidate",
+  "observation",
+  "rule",
+])
+export const memoryImportanceSchema = z.enum(["low", "medium", "high", "critical"])
+export const memoryStatusSchema = z.enum(["active", "candidate", "stale", "superseded", "archived"])
+export const sourceKindSchema = z.enum(["notion", "gmail", "caldav", "google_calendar", "manual", "system"])
+export const sourceFreshnessSchema = z.enum(["fresh", "partial", "stale", "failed"])
 
 const hhmmPattern = /^([01]\d|2[0-3]):([0-5]\d)$/
 const tagSchema = z.string().trim().min(1)
-//hi
-// App-facing schemas mirror camelCase shared models. Raw Supabase rows stay in `types/index.ts`.
+
 export const userPreferencesSchema = z.object({
   userId: z.string().uuid(),
   timezone: z.string().min(1),
@@ -50,7 +58,7 @@ export const taskSchema = z.object({
 })
 
 export const userCalendarSchema = z.object({
-  id: z.string().min(1),
+  id: z.string().uuid(),
   userId: z.string().uuid(),
   calendarKey: z.string().min(1),
   name: z.string().min(1),
@@ -95,4 +103,22 @@ export const scheduleEventInputSchema = scheduleEventSchema.omit({ userId: true 
   isCheckedIn: z.boolean().optional().default(false),
 })
 
-// ##### END BACKEND #####
+export const memoryEntrySummarySchema = z.object({
+  id: z.string().uuid(),
+  kind: memoryKindSchema,
+  category: z.string().min(1),
+  insight: z.string().min(1),
+  importance: memoryImportanceSchema,
+  importanceNote: z.string().min(1).nullable(),
+  source: z.string().min(1),
+  confidence: z.number().nullable(),
+  createdAt: z.string().datetime({ offset: true }),
+})
+
+export const sourceSnapshotSummarySchema = z.object({
+  id: z.string().uuid(),
+  source: sourceKindSchema,
+  freshness: sourceFreshnessSchema,
+  summary: z.string().min(1),
+  capturedAt: z.string().datetime({ offset: true }),
+})

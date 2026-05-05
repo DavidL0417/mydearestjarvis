@@ -1,9 +1,6 @@
-// ##### BACKEND API #####
-// DO NOT MODIFY UNLESS BACKEND OWNER
-
 import { NextResponse } from "next/server"
 
-import { mapTaskRowToTask } from "@/lib/data/mappers"
+import { mapTaskRowToTask, mapTaskToInsert, TASK_SELECT } from "@/lib/data/mappers"
 import {
   isAuthenticationRequiredError,
   requireAuthenticatedUser,
@@ -25,24 +22,11 @@ function buildTaskInsert(input: CreateTaskRequest, userId: string) {
     scheduledFor: input.scheduledFor ?? null,
     isImmutable: input.isImmutable ?? false,
     allDay: input.allDay ?? false,
-    calendarId: TASKS_CALENDAR_ID,
+    calendarId: input.calendarId ?? TASKS_CALENDAR_ID,
     tags: input.tags ?? [],
   }
 
-  return {
-    user_id: task.userId,
-    title: task.title,
-    description: task.description,
-    deadline: task.deadline,
-    duration_minutes: task.durationMinutes,
-    priority: task.priority,
-    status: task.status,
-    scheduled_for: task.scheduledFor,
-    is_immutable: task.isImmutable,
-    all_day: task.allDay,
-    calendar_id: task.calendarId,
-    tags: task.tags,
-  }
+  return mapTaskToInsert(task)
 }
 
 export async function POST(request: Request) {
@@ -65,9 +49,7 @@ export async function POST(request: Request) {
     const { data, error } = await adminClient
       .from("tasks")
       .insert(buildTaskInsert(parsedBody.data, user.id))
-      .select(
-        "id, user_id, title, description, deadline, duration_minutes, priority, status, scheduled_for, created_at, updated_at, is_immutable, all_day, calendar_id, tags",
-      )
+      .select(TASK_SELECT)
       .single<TaskRow>()
 
     if (error || !data) {
@@ -106,5 +88,3 @@ export async function POST(request: Request) {
     )
   }
 }
-
-// ##### END BACKEND #####

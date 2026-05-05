@@ -1,22 +1,11 @@
-// ##### BACKEND API #####
-// DO NOT MODIFY UNLESS BACKEND OWNER
-
 import { NextResponse } from "next/server"
 
-import { buildFallbackAssistantContextData, loadAssistantRuntimeContext } from "@/lib/assistant/context"
+import { loadAssistantRuntimeContext } from "@/lib/assistant/context"
 import { createSupabaseAdminClient } from "@/lib/supabase/server"
 import {
   isAuthenticationRequiredError,
   requireAuthenticatedUser,
 } from "@/lib/supabase/auth"
-import {
-  getMissingScheduleEventPriorityHint,
-  isMissingScheduleEventPriorityError,
-} from "@/lib/supabase/schema-compat"
-import {
-  getMissingUserCalendarsTableHint,
-  isMissingUserCalendarsTableError,
-} from "@/lib/tasks-calendar"
 import { assistantContextResponseSchema } from "@/schemas/assistant"
 
 export async function GET() {
@@ -42,26 +31,6 @@ export async function GET() {
       )
     }
 
-    if (isMissingUserCalendarsTableError(error)) {
-      return NextResponse.json(
-        assistantContextResponseSchema.parse({
-          ok: true,
-          context: buildFallbackAssistantContextData(),
-          error: getMissingUserCalendarsTableHint(),
-        }),
-      )
-    }
-
-    if (isMissingScheduleEventPriorityError(error)) {
-      return NextResponse.json(
-        assistantContextResponseSchema.parse({
-          ok: true,
-          context: buildFallbackAssistantContextData(),
-          error: getMissingScheduleEventPriorityHint(),
-        }),
-      )
-    }
-
     return NextResponse.json(
       {
         ok: false,
@@ -71,5 +40,3 @@ export async function GET() {
     )
   }
 }
-
-// ##### END BACKEND #####

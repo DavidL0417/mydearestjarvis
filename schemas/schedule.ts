@@ -4,8 +4,10 @@
 import { z } from "zod"
 
 import {
+  memoryEntrySummarySchema,
   scheduleEventInputSchema,
   scheduleEventSchema,
+  sourceSnapshotSummarySchema,
   taskSchema,
   userPreferencesSchema,
 } from "@/schemas/common"
@@ -20,6 +22,8 @@ export const schedulePreparationContextSchema = z.object({
   tasks: z.array(taskSchema),
   preferences: userPreferencesSchema.nullable(),
   hardEvents: z.array(scheduleEventSchema),
+  memoryEntries: z.array(memoryEntrySummarySchema).optional(),
+  sourceSnapshots: z.array(sourceSnapshotSummarySchema).optional(),
 })
 
 export const schedulePlanResultSchema = z.object({

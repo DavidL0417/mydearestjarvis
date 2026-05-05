@@ -1,16 +1,7 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { DashboardStats } from "@/types"
-
-// API Hook: Replace mockWorkspaceStats with fetch call here
-// Example: const { data: stats } = useSWR('/api/workspace/stats', fetcher)
-const mockWorkspaceStats = {
-  openTasks: 23,
-  inbox: 0,
-  overdue: 0,
-  checkIns: "Quiet",
-}
 
 interface StatItemProps {
   label: string
@@ -24,8 +15,8 @@ interface WorkspaceSnapshotProps {
 function StatItem({ label, value }: StatItemProps) {
   return (
     <div className="space-y-0.5">
-      <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-semibold">{label}</p>
-      <p className="text-base font-bold text-foreground">{value}</p>
+      <p className="text-[11px] font-semibold uppercase text-muted-foreground">{label}</p>
+      <p className="text-base font-semibold text-foreground">{value}</p>
     </div>
   )
 }
@@ -35,30 +26,29 @@ function formatCheckIns(value: DashboardStats["checkInMode"]) {
 }
 
 export function WorkspaceSnapshot({ stats }: WorkspaceSnapshotProps) {
-  const workspaceStats = stats
-    ? {
-        openTasks: stats.tasks,
-        inbox: 0,
-        overdue: stats.overdue,
-        checkIns: formatCheckIns(stats.checkInMode),
-      }
-    : mockWorkspaceStats
+  if (!stats) {
+    return (
+      <Card>
+        <CardHeader className="p-4 pb-2">
+          <CardTitle className="text-sm font-semibold">Workspace</CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 pt-0 text-xs text-muted-foreground">
+          No dashboard state loaded.
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
-    <Card className="overflow-hidden border-white/10 bg-[linear-gradient(140deg,rgba(17,20,31,0.96),rgba(30,37,55,0.82))] shadow-[0_18px_44px_rgba(0,0,0,0.18)]">
+    <Card>
       <CardHeader className="p-4 pb-2">
-        <CardTitle className="text-sm font-bold text-foreground">Workspace Snapshot</CardTitle>
-        <CardDescription className="text-xs text-muted-foreground leading-tight font-medium">
-          Live pressure points across tasks, scheduling, and check-in load.
-        </CardDescription>
+        <CardTitle className="text-sm font-semibold">Workspace</CardTitle>
       </CardHeader>
-      <CardContent className="p-4 pt-0">
-        <div className="grid grid-cols-2 gap-3">
-          <StatItem label="Open tasks" value={workspaceStats.openTasks} />
-          <StatItem label="Inbox" value={workspaceStats.inbox} />
-          <StatItem label="Overdue" value={workspaceStats.overdue} />
-          <StatItem label="Check-ins" value={workspaceStats.checkIns} />
-        </div>
+      <CardContent className="grid grid-cols-2 gap-3 p-4 pt-0">
+        <StatItem label="Tasks" value={stats.tasks} />
+        <StatItem label="Loose" value={stats.unscheduled} />
+        <StatItem label="Overdue" value={stats.overdue} />
+        <StatItem label="Check-ins" value={formatCheckIns(stats.checkInMode)} />
       </CardContent>
     </Card>
   )

@@ -1,15 +1,21 @@
-// ##### BACKEND API #####
-// DO NOT MODIFY UNLESS BACKEND OWNER
-
 import { z } from "zod"
 
-import { preferredCheckInModeSchema, scheduleEventSchema, taskSchema, taskStatusSchema } from "@/schemas/common"
+import {
+  memoryEntrySummarySchema,
+  preferredCheckInModeSchema,
+  scheduleEventSchema,
+  sourceSnapshotSummarySchema,
+  taskSchema,
+  taskStatusSchema,
+} from "@/schemas/common"
 
 export const dashboardStatsSchema = z.object({
   tasks: z.number().int().nonnegative(),
   overdue: z.number().int().nonnegative(),
   unscheduled: z.number().int().nonnegative(),
   checkInMode: preferredCheckInModeSchema,
+  memories: z.number().int().nonnegative(),
+  sources: z.number().int().nonnegative(),
 })
 
 export const dashboardCurrentTaskSchema = z.object({
@@ -23,8 +29,8 @@ export const dashboardResponseSchema = z.object({
   currentTask: dashboardCurrentTaskSchema.nullable(),
   tasks: z.array(taskSchema),
   events: z.array(scheduleEventSchema),
+  memories: z.array(memoryEntrySummarySchema),
+  sources: z.array(sourceSnapshotSummarySchema),
 })
 
 export type DashboardResponseInput = z.infer<typeof dashboardResponseSchema>
-
-// ##### END BACKEND #####

@@ -3,15 +3,15 @@
 
 import { NextResponse } from "next/server"
 
-import { mapCheckInPayloadToInsert, mapScheduleEventRowToScheduleEvent } from "@/lib/data/mappers"
+import {
+  mapCheckInPayloadToInsert,
+  mapScheduleEventRowToScheduleEvent,
+  SCHEDULE_EVENT_SELECT,
+} from "@/lib/data/mappers"
 import {
   isAuthenticationRequiredError,
   requireAuthenticatedUser,
 } from "@/lib/supabase/auth"
-import {
-  runScheduleEventMutationWithCompat,
-  runScheduleEventsSelectWithCompat,
-} from "@/lib/supabase/schema-compat"
 import {
   checkInApprovalListResponseSchema,
   checkInRequestSchema,
@@ -37,17 +37,15 @@ function isApprovalPayload(value: unknown): value is { eventId: string } {
 export async function GET() {
   try {
     const { adminClient, user } = await requireAuthenticatedUser()
-    const { data, error } = await runScheduleEventsSelectWithCompat(async (selectClause) =>
-      await adminClient
-        .from("schedule_events")
-        .select(selectClause)
-        .eq("user_id", user.id)
-        .eq("last_synced_from", "gcal")
-        .eq("is_checked_in", false)
-        .not("gcal_event_id", "is", null)
-        .gte("ends_at", new Date().toISOString())
-        .order("starts_at", { ascending: true }),
-    )
+    const { data, error } = await adminClient
+      .from("schedule_events")
+      .select(SCHEDULE_EVENT_SELECT)
+      .eq("user_id", user.id)
+      .eq("last_synced_from", "gcal")
+      .eq("is_checked_in", false)
+      .not("gcal_event_id", "is", null)
+      .gte("ends_at", new Date().toISOString())
+      .order("starts_at", { ascending: true })
 
     if (error) {
       throw new Error(error.message)
@@ -107,15 +105,12 @@ export async function POST(request: Request) {
 
     try {
       const { adminClient, user } = await requireAuthenticatedUser()
-      const { data: existing, error: existingError } = await runScheduleEventsSelectWithCompat(
-        async (selectClause) =>
-          await adminClient
-            .from("schedule_events")
-            .select(selectClause)
-            .eq("id", parsedBody.data.eventId)
-            .eq("user_id", user.id)
-            .maybeSingle<ScheduleEventRow>(),
-      )
+      const { data: existing, error: existingError } = await adminClient
+        .from("schedule_events")
+        .select(SCHEDULE_EVENT_SELECT)
+        .eq("id", parsedBody.data.eventId)
+        .eq("user_id", user.id)
+        .maybeSingle<ScheduleEventRow>()
 
       if (existingError) {
         throw new Error(existingError.message)
@@ -149,20 +144,13 @@ export async function POST(request: Request) {
         is_checked_in: true,
         updated_at: now,
       }
-      const { data: updatedEvent, error: updateEventError } = await runScheduleEventMutationWithCompat(
-        updatePayload,
-        async (payload) =>
-          await runScheduleEventsSelectWithCompat(
-            async (selectClause) =>
-              await adminClient
-                .from("schedule_events")
-                .update(payload)
-                .eq("id", existing.id)
-                .eq("user_id", user.id)
-                .select(selectClause)
-                .single<ScheduleEventRow>(),
-          ),
-      )
+      const { data: updatedEvent, error: updateEventError } = await adminClient
+        .from("schedule_events")
+        .update(updatePayload)
+        .eq("id", existing.id)
+        .eq("user_id", user.id)
+        .select(SCHEDULE_EVENT_SELECT)
+        .single<ScheduleEventRow>()
 
       if (updateEventError || !updatedEvent) {
         throw new Error(updateEventError?.message ?? "Failed to save check-in approval.")

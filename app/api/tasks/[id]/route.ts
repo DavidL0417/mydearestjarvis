@@ -1,21 +1,17 @@
-// ##### BACKEND API #####
-// DO NOT MODIFY UNLESS BACKEND OWNER
-
 import { NextResponse } from "next/server"
 import { z } from "zod"
 
-import { mapTaskRowToTask, mapTaskToUpdate } from "@/lib/data/mappers"
+import { mapTaskRowToTask, mapTaskToUpdate, TASK_SELECT } from "@/lib/data/mappers"
 import {
   isAuthenticationRequiredError,
   requireAuthenticatedUser,
 } from "@/lib/supabase/auth"
-import { TASKS_CALENDAR_ID } from "@/lib/task-calendar-constants"
 import {
   deleteTaskResponseSchema,
   taskMutationResponseSchema,
   updateTaskRequestSchema,
 } from "@/schemas/tasks"
-import type { DeleteTaskResponse, TaskMutationResponse, TaskRow, TaskStatus } from "@/types"
+import type { DeleteTaskResponse, TaskMutationResponse, TaskRow } from "@/types"
 
 const taskIdSchema = z.string().uuid()
 
@@ -49,53 +45,30 @@ export async function PATCH(
   try {
     const { adminClient, user } = await requireAuthenticatedUser()
 
-    const { data: existingTask, error: existingTaskError } = await adminClient
-      .from("tasks")
-      .select("id, status, scheduled_for")
-      .eq("id", parsedTaskId.data)
-      .eq("user_id", user.id)
-      .maybeSingle<{ id: string; status: TaskStatus; scheduled_for: string | null }>()
-
-    if (existingTaskError) {
-      throw new Error(existingTaskError.message)
+    const updatePayload = {
+      ...mapTaskToUpdate(parsedBody.data),
+      updated_at: new Date().toISOString(),
     }
 
-    if (!existingTask) {
-      return NextResponse.json({ error: "Task not found." }, { status: 404 })
-    }
+    if (parsedBody.data.status === "completed" || parsedBody.data.status === "todo") {
+      const { error: deleteScheduleEventsError } = await adminClient
+        .from("schedule_events")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("task_id", parsedTaskId.data)
+        .eq("source", "task")
 
-    if (existingTask.status === "scheduled" || existingTask.scheduled_for) {
-      return NextResponse.json(
-        {
-          error: "Scheduled tasks cannot be deleted.",
-          details: "Unschedule the task first to move it back into the unscheduled queue.",
-        },
-        { status: 409 },
-      )
-    }
-
-    const { error: deleteScheduleEventsError } = await adminClient
-      .from("schedule_events")
-      .delete()
-      .eq("user_id", user.id)
-      .eq("task_id", parsedTaskId.data)
-
-    if (deleteScheduleEventsError) {
-      throw new Error(deleteScheduleEventsError.message)
+      if (deleteScheduleEventsError) {
+        throw new Error(deleteScheduleEventsError.message)
+      }
     }
 
     const { data, error } = await adminClient
       .from("tasks")
-      .update({
-        ...mapTaskToUpdate(parsedBody.data),
-        calendar_id: TASKS_CALENDAR_ID,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq("id", parsedTaskId.data)
       .eq("user_id", user.id)
-      .select(
-        "id, user_id, title, description, deadline, duration_minutes, priority, status, scheduled_for, created_at, updated_at, is_immutable, all_day, calendar_id, tags",
-      )
+      .select(TASK_SELECT)
       .maybeSingle<TaskRow>()
 
     if (error) {
@@ -210,5 +183,3 @@ export async function DELETE(
     )
   }
 }
-
-// ##### END BACKEND #####

@@ -1,20 +1,29 @@
-// ##### BACKEND API #####
-// DO NOT MODIFY UNLESS BACKEND OWNER
-
 import { NextResponse } from "next/server"
 
 import {
   getCheckInModeFromCount,
+  mapMemoryItemRowToSummary,
   mapScheduleEventRowToScheduleEvent,
+  mapSourceSnapshotRowToSummary,
   mapTaskRowToTask,
+  MEMORY_ITEM_SELECT,
+  SCHEDULE_EVENT_SELECT,
+  SOURCE_SNAPSHOT_SELECT,
+  TASK_SELECT,
 } from "@/lib/data/mappers"
 import {
   isAuthenticationRequiredError,
   requireAuthenticatedUser,
 } from "@/lib/supabase/auth"
-import { runScheduleEventsSelectWithCompat } from "@/lib/supabase/schema-compat"
 import { dashboardResponseSchema } from "@/schemas/dashboard"
-import type { DashboardResponse, ScheduleEventRow, Task } from "@/types"
+import type {
+  DashboardResponse,
+  MemoryItemRow,
+  ScheduleEventRow,
+  SourceSnapshotRow,
+  Task,
+  TaskRow,
+} from "@/types"
 
 function pickCurrentTask(tasks: Task[]): DashboardResponse["currentTask"] {
   const scheduledTask = tasks.find((task) => task.status === "scheduled")
@@ -44,40 +53,59 @@ export async function GET() {
   try {
     const { adminClient, user } = await requireAuthenticatedUser()
 
-    const [tasksResult, eventsResult, checkinsResult] = await Promise.all([
+    const [tasksResult, eventsResult, checkinsResult, memoryResult, sourceResult] = await Promise.all([
       adminClient
         .from("tasks")
-        .select(
-          "id, user_id, title, description, deadline, duration_minutes, priority, status, scheduled_for, created_at, updated_at, is_immutable, all_day, calendar_id, tags",
-        )
+        .select(TASK_SELECT)
         .eq("user_id", user.id)
         .order("created_at", { ascending: true }),
-      runScheduleEventsSelectWithCompat(async (selectClause) =>
-        await adminClient
-          .from("schedule_events")
-          .select(selectClause)
-          .eq("user_id", user.id)
-          .order("starts_at", { ascending: true }),
-      ),
+      adminClient
+        .from("schedule_events")
+        .select(SCHEDULE_EVENT_SELECT)
+        .eq("user_id", user.id)
+        .order("starts_at", { ascending: true }),
       adminClient.from("checkins").select("id").eq("user_id", user.id).limit(4),
+      adminClient
+        .from("memory_items")
+        .select(MEMORY_ITEM_SELECT)
+        .eq("user_id", user.id)
+        .eq("status", "active")
+        .order("created_at", { ascending: false })
+        .limit(8),
+      adminClient
+        .from("source_snapshots")
+        .select(SOURCE_SNAPSHOT_SELECT)
+        .eq("user_id", user.id)
+        .order("captured_at", { ascending: false })
+        .limit(8),
     ])
 
-    if (tasksResult.error || eventsResult.error || checkinsResult.error) {
+    if (
+      tasksResult.error ||
+      eventsResult.error ||
+      checkinsResult.error ||
+      memoryResult.error ||
+      sourceResult.error
+    ) {
       throw new Error(
         tasksResult.error?.message ||
           eventsResult.error?.message ||
           checkinsResult.error?.message ||
+          memoryResult.error?.message ||
+          sourceResult.error?.message ||
           "Failed to load dashboard data from Supabase.",
       )
     }
 
-    const tasks = (tasksResult.data || []).map(mapTaskRowToTask)
-    const events = ((eventsResult.data || []) as unknown as ScheduleEventRow[])
-      .map(mapScheduleEventRowToScheduleEvent)
+    const tasks = (tasksResult.data || []).map((row) => mapTaskRowToTask(row as TaskRow))
+    const events = (eventsResult.data || [])
+      .map((row) => mapScheduleEventRowToScheduleEvent(row as ScheduleEventRow))
       .sort((left, right) => new Date(left.start).getTime() - new Date(right.start).getTime())
+    const memories = (memoryResult.data || []).map((row) => mapMemoryItemRowToSummary(row as MemoryItemRow))
+    const sources = (sourceResult.data || []).map((row) => mapSourceSnapshotRowToSummary(row as SourceSnapshotRow))
     const scheduledTaskIds = new Set(
-      ((eventsResult.data || []) as unknown as Array<{ task_id: string | null }>)
-        .map((event) => event.task_id)
+      (eventsResult.data || [])
+        .map((event) => (event as { task_id: string | null }).task_id)
         .filter((taskId): taskId is string => typeof taskId === "string" && taskId.length > 0),
     )
 
@@ -107,10 +135,14 @@ export async function GET() {
         overdue: overdueCount,
         unscheduled: unscheduledCount,
         checkInMode: getCheckInModeFromCount((checkinsResult.data || []).length),
+        memories: memories.length,
+        sources: sources.length,
       },
       currentTask: pickCurrentTask(tasks),
       tasks,
       events,
+      memories,
+      sources,
     }
 
     const parsedPayload = dashboardResponseSchema.safeParse(dashboardPayload)
@@ -140,5 +172,3 @@ export async function GET() {
     )
   }
 }
-
-// ##### END BACKEND #####

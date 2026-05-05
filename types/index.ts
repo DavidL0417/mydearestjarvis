@@ -1,7 +1,3 @@
-// ##### BACKEND API #####
-// DO NOT MODIFY UNLESS BACKEND OWNER
-
-// Shared enum/value sets that must stay aligned with the SQL schema.
 export type Priority = "low" | "medium" | "high"
 export type TaskStatus = "todo" | "scheduled" | "completed" | "missed"
 export type PreferredCheckInMode = "silent" | "quiet" | "gentle" | "active"
@@ -14,47 +10,18 @@ export type UserIntegrationStatus = "connected" | "needs_reauth" | "disconnected
 export type SyncOrigin = "local" | "gcal"
 export type CalendarSource = "local" | "google" | "imported" | "task"
 export type CalendarSyncPreference = "active" | "pending" | "ignored"
+export type MemoryKind = "preference" | "task_context" | "source_observation" | "candidate" | "observation" | "rule"
+export type MemoryImportance = "low" | "medium" | "high" | "critical"
+export type MemoryStatus = "active" | "candidate" | "stale" | "superseded" | "archived"
+export type SourceKind = "notion" | "gmail" | "caldav" | "google_calendar" | "manual" | "system"
+export type SourceFreshness = "fresh" | "partial" | "stale" | "failed"
+export type AssistantToolStatus = "completed" | "clarification" | "error" | "pending_approval"
 
-// Raw database row shapes. These match Supabase column names and nullability exactly.
 export interface UserRow {
   id: string
   email: string
   name: string
   avatar_url: string | null
-  created_at: string
-  updated_at: string
-}
-
-export interface UserIntegrationRow {
-  id: string
-  user_id: string
-  provider: IntegrationProvider
-  provider_account_email: string | null
-  provider_user_id: string | null
-  access_token: string | null
-  refresh_token: string | null
-  expires_at: string | null
-  scope: string | null
-  status: UserIntegrationStatus
-  selected_calendar_id: string | null
-  last_synced_at: string | null
-  created_at: string
-  updated_at: string
-}
-
-export interface UserCalendarRow {
-  id: string
-  user_id: string
-  calendar_key: string
-  name: string
-  color: string
-  source: CalendarSource
-  google_calendar_id: string | null
-  remote_name: string | null
-  is_visible: boolean
-  is_immutable: boolean
-  sync_preference: CalendarSyncPreference
-  is_task_calendar: boolean
   created_at: string
   updated_at: string
 }
@@ -77,6 +44,23 @@ export interface UserPreferencesRow {
   updated_at: string
 }
 
+export interface UserCalendarRow {
+  id: string
+  user_id: string
+  calendar_key: string
+  name: string
+  color: string
+  source: CalendarSource
+  google_calendar_id: string | null
+  remote_name: string | null
+  is_visible: boolean
+  is_immutable: boolean
+  sync_preference: CalendarSyncPreference
+  is_task_calendar: boolean
+  created_at: string
+  updated_at: string
+}
+
 export interface TaskRow {
   id: string
   user_id: string
@@ -93,6 +77,7 @@ export interface TaskRow {
   all_day: boolean
   calendar_id: string | null
   tags: string[]
+  source_snapshot_id: string | null
 }
 
 export interface ScheduleEventRow {
@@ -121,6 +106,7 @@ export interface CheckInRow {
   id: string
   user_id: string
   task_id: string | null
+  event_id: string | null
   mood: CheckInMood | null
   energy: CheckInEnergy | null
   outcome: CheckInOutcome
@@ -129,22 +115,84 @@ export interface CheckInRow {
   created_at: string
 }
 
-export interface MemoryLogRow {
+export interface UserIntegrationRow {
   id: string
   user_id: string
+  provider: IntegrationProvider
+  provider_account_email: string | null
+  provider_user_id: string | null
+  status: UserIntegrationStatus
+  selected_calendar_id: string | null
+  last_synced_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface IntegrationTokenRow {
+  id: string
+  user_id: string
+  provider: IntegrationProvider
+  access_token: string | null
+  refresh_token: string | null
+  expires_at: string | null
+  scope: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface MemoryItemRow {
+  id: string
+  user_id: string
+  kind: MemoryKind
   category: string
-  insight: string
+  content: string
+  importance: MemoryImportance
+  importance_note: string | null
   confidence: number | null
-  source: string
+  source_label: string
+  source_ref: string | null
+  status: MemoryStatus
+  supersedes_id: string | null
+  expires_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type MemoryLogRow = MemoryItemRow
+
+export interface SourceSnapshotRow {
+  id: string
+  user_id: string
+  source: SourceKind
+  source_ref: string | null
+  captured_at: string
+  freshness: SourceFreshness
+  summary: string
+  payload: Record<string, unknown>
   created_at: string
 }
 
-// Database write payloads keep snake_case because they target Supabase directly.
+export interface ChangeLogRow {
+  id: string
+  user_id: string
+  actor: "user" | "assistant" | "system"
+  action: string
+  target_table: string | null
+  target_id: string | null
+  summary: string
+  before_value: Record<string, unknown> | null
+  after_value: Record<string, unknown> | null
+  source_label: string | null
+  created_at: string
+}
+
 export type UserPreferencesUpsertRow = Omit<UserPreferencesRow, "id" | "created_at" | "updated_at">
-export type TaskInsertRow = Omit<TaskRow, "id" | "created_at" | "updated_at">
+export type TaskInsertRow = Omit<TaskRow, "id" | "created_at" | "updated_at" | "source_snapshot_id"> & {
+  source_snapshot_id?: string | null
+}
 export type TaskUpdateRow = Partial<Omit<TaskInsertRow, "user_id">>
 export type ScheduleEventInsertRow = Omit<ScheduleEventRow, "id" | "created_at" | "updated_at">
-export type CheckInInsertRow = Omit<CheckInRow, "id" | "created_at">
+export type CheckInInsertRow = Omit<CheckInRow, "id" | "created_at" | "event_id"> & { event_id?: string | null }
 export type UserIntegrationUpsertRow = Omit<UserIntegrationRow, "id" | "created_at" | "updated_at">
 export type UserCalendarUpsertRow = Omit<UserCalendarRow, "id" | "created_at" | "updated_at">
 
@@ -157,21 +205,19 @@ export interface UserProfile {
   updatedAt: string
 }
 
-export interface UserIntegration {
-  id: string
+export interface UserPreferences {
   userId: string
-  provider: IntegrationProvider
-  providerAccountEmail: string | null
-  providerUserId: string | null
-  accessToken: string | null
-  refreshToken: string | null
-  expiresAt: string | null
-  scope: string | null
-  status: UserIntegrationStatus
-  selectedCalendarId: string | null
-  lastSyncedAt: string | null
-  createdAt: string
-  updatedAt: string
+  timezone: string
+  sleepPattern: string | null
+  peakEnergyWindow: string | null
+  procrastinationPattern: string | null
+  workdayStart: string
+  workdayEnd: string
+  defaultTaskDurationMinutes: number
+  breakDurationMinutes: number
+  preferredFocusBlockMinutes: number | null
+  preferredCheckInMode: PreferredCheckInMode
+  calendarId: string | null
 }
 
 export interface UserCalendar {
@@ -191,22 +237,6 @@ export interface UserCalendar {
   updatedAt: string
 }
 
-// App/frontend-facing models. SQL rows stay snake_case, and mapper utilities convert them to camelCase.
-export interface UserPreferences {
-  userId: string
-  timezone: string
-  sleepPattern: string | null
-  peakEnergyWindow: string | null
-  procrastinationPattern: string | null
-  workdayStart: string
-  workdayEnd: string
-  defaultTaskDurationMinutes: number
-  breakDurationMinutes: number
-  preferredFocusBlockMinutes: number | null
-  preferredCheckInMode: PreferredCheckInMode
-  calendarId: string | null
-}
-
 export interface Task {
   id: string
   userId: string
@@ -220,8 +250,6 @@ export interface Task {
   isImmutable: boolean
   allDay: boolean
   calendarId: string | null
-  // `tags` is now persisted in Supabase on `public.tasks.tags`.
-  // SQL rows use snake_case, while app-facing task objects use camelCase through the mapper layer.
   tags: string[]
 }
 
@@ -245,6 +273,19 @@ export interface ScheduleEvent {
   calendarId: string | null
 }
 
+export interface UserIntegration {
+  id: string
+  userId: string
+  provider: IntegrationProvider
+  providerAccountEmail: string | null
+  providerUserId: string | null
+  status: UserIntegrationStatus
+  selectedCalendarId: string | null
+  lastSyncedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 export interface GoogleCalendarExtendedProperties {
   priority: Priority
   isImmutable: boolean
@@ -258,6 +299,7 @@ export interface CheckIn {
   id: string
   userId: string
   taskId: string | null
+  eventId: string | null
   mood: CheckInMood | null
   energy: CheckInEnergy | null
   outcome: CheckInOutcome
@@ -266,27 +308,24 @@ export interface CheckIn {
   createdAt: string
 }
 
-export type AssistantToolStatus = "completed" | "clarification" | "error"
-
-export interface AssistantToolCallResult {
-  id: string
-  tool: string
-  status: AssistantToolStatus
-  summary: string
-}
-
-export interface AssistantConversationEntry {
-  role: "user" | "assistant"
-  text: string
-}
-
 export interface MemoryEntrySummary {
   id: string
+  kind: MemoryKind
   category: string
   insight: string
+  importance: MemoryImportance
+  importanceNote: string | null
   source: string
   confidence: number | null
   createdAt: string
+}
+
+export interface SourceSnapshotSummary {
+  id: string
+  source: SourceKind
+  freshness: SourceFreshness
+  summary: string
+  capturedAt: string
 }
 
 export interface AvailabilityContext {
@@ -314,7 +353,27 @@ export interface AssistantContextData {
   availability: AvailabilityContext
   availabilityWindows: AvailabilityWindow[]
   memoryEntries: MemoryEntrySummary[]
+  sourceSnapshots: SourceSnapshotSummary[]
   memorySummary: string
+}
+
+export interface AssistantToolCallResult {
+  id: string
+  tool: string
+  status: AssistantToolStatus
+  summary: string
+}
+
+export interface AssistantConversationEntry {
+  role: "user" | "assistant"
+  text: string
+}
+
+export interface AssistantMessageRequest {
+  message: string
+  now?: string | null
+  timezone?: string | null
+  history?: AssistantConversationEntry[]
 }
 
 export interface AssistantMessageResponse {
@@ -325,18 +384,6 @@ export interface AssistantMessageResponse {
   clarification: string | null
   context: AssistantContextData
   error?: string
-  debug?: {
-    steps?: string[]
-    lastToolName?: string
-    model?: string
-  }
-}
-
-export interface AssistantMessageRequest {
-  message: string
-  now?: string | null
-  timezone?: string | null
-  history?: AssistantConversationEntry[]
 }
 
 export interface AssistantContextResponse {
@@ -345,15 +392,14 @@ export interface AssistantContextResponse {
   error?: string
 }
 
-// Request/response payloads intentionally separate API contracts from DB rows.
 export interface CheckInRequest {
   mood?: CheckInMood
   energy?: CheckInEnergy
   blockers?: string[]
   note?: string
-  // App-level convenience fields. These are not direct columns on `public.checkins`.
   completedTaskIds?: string[]
   activeTaskId?: string
+  eventId?: string | null
 }
 
 export interface CheckInApprovalItem {
@@ -381,6 +427,8 @@ export interface DashboardStats {
   overdue: number
   unscheduled: number
   checkInMode: PreferredCheckInMode
+  memories: number
+  sources: number
 }
 
 export interface DashboardCurrentTask {
@@ -394,6 +442,8 @@ export interface DashboardResponse {
   currentTask: DashboardCurrentTask | null
   tasks: Task[]
   events: ScheduleEvent[]
+  memories: MemoryEntrySummary[]
+  sources: SourceSnapshotSummary[]
 }
 
 export interface CreateTaskRequest {
@@ -550,6 +600,8 @@ export interface SchedulePreparationContext {
   tasks: Task[]
   preferences: UserPreferences | null
   hardEvents: ScheduleEvent[]
+  memoryEntries?: MemoryEntrySummary[]
+  sourceSnapshots?: SourceSnapshotSummary[]
 }
 
 export interface SchedulePlanResult {
@@ -578,4 +630,10 @@ export interface ReplanRequest {
   preferences?: UserPreferences
 }
 
-// ##### END BACKEND #####
+export interface GoogleCalendarSyncResponse {
+  success: boolean
+  connected: boolean
+  events: ScheduleEvent[]
+  calendars: UserCalendar[]
+  error?: string
+}
