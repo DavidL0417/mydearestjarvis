@@ -284,7 +284,7 @@ export function TaskManager({
       return (
         <li
           key={task.id}
-          className="border-b border-rule px-1 py-2"
+          className="rounded-sm bg-muted/20 px-2.5 py-2.5"
         >
           <div className="space-y-2">
             <Input
@@ -345,7 +345,7 @@ export function TaskManager({
     return (
       <li
         key={task.id}
-        className="group flex items-baseline gap-3 border-b border-rule px-1 py-2.5"
+        className="group flex items-baseline gap-3 rounded-sm bg-muted/15 px-2.5 py-2.5 transition-colors hover:bg-muted/25"
       >
         <span className="num w-6 shrink-0 text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
           {String(index + 1).padStart(2, "0")}
@@ -457,8 +457,8 @@ export function TaskManager({
   ]
 
   return (
-    <section className="flex flex-col">
-      <header className="mb-3 flex items-baseline justify-between gap-2">
+    <section className="flex flex-col border-t-2 border-rule-strong pt-8">
+      <header className="mb-5 flex items-center justify-between gap-2">
         <div className="flex items-baseline gap-2">
           <h2 className="eyebrow">{headerTitle}</h2>
           <span className="num text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
@@ -488,7 +488,7 @@ export function TaskManager({
       ) : null}
 
       {createOpen ? (
-        <div className="mb-3 space-y-2 border-y border-rule py-2">
+        <div className="mb-5 space-y-2 rounded-sm bg-muted/20 px-3 py-3">
           <Input
             placeholder="New task"
             value={createDraft.title}
@@ -559,21 +559,21 @@ export function TaskManager({
         </div>
       ) : null}
 
-      <div className="space-y-5">
+      <div className="space-y-7">
         {sections.map((section) => (
           <div key={section.id}>
-            <div className="mb-1.5 flex items-baseline gap-2">
+            <div className="mb-2 flex items-baseline gap-2">
               <h3 className="eyebrow">{section.title}</h3>
               <span className="num text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
                 {section.tasks.length}
               </span>
             </div>
             {section.tasks.length === 0 ? (
-              <p className="border-b border-rule py-2.5 text-[12.5px] text-muted-foreground">
+              <p className="text-[12.5px] text-muted-foreground">
                 {section.id === "overdue" ? "Nothing overdue." : section.id === "todo" ? "Inbox empty." : "Nothing scheduled."}
               </p>
             ) : (
-              <ul>
+              <ul className="space-y-1.5">
                 {section.tasks.map((task, index) => renderTaskRow(task, index))}
               </ul>
             )}
@@ -599,11 +599,11 @@ export function TaskManager({
           </button>
           {showCompleted ? (
             completedTasks.length === 0 ? (
-              <p className="border-b border-rule py-2.5 text-[12.5px] text-muted-foreground">
+              <p className="mt-2 text-[12.5px] text-muted-foreground">
                 Nothing closed yet.
               </p>
             ) : (
-              <ul>{completedTasks.map((task, index) => renderTaskRow(task, index))}</ul>
+              <ul className="mt-2 space-y-1.5">{completedTasks.map((task, index) => renderTaskRow(task, index))}</ul>
             )
           ) : null}
         </div>

@@ -15,6 +15,8 @@
 - Empty/error/auth states must be honest and compact.
 - No placeholder data, demo counts, seeded tasks, or fake recommendations.
 - Avoid nested cards and marketing-style sections.
+- Treat the secretary panel as a transcript plus command line. Avoid filled chat boxes, decorative composer rules, and separators that do not map to a real region change.
+- In the right rail, prefer spacing and muted surfaces for local grouping. Reserve strong rules for major region breaks so the panel does not become a stack of equal dividers.
 
 ## Layout Rules
 

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import ReactMarkdown from "react-markdown"
 import remarkBreaks from "remark-breaks"
 import remarkGfm from "remark-gfm"
-import { ChevronDown, Loader2, Send } from "lucide-react"
+import { ArrowUp, ChevronDown, Loader2 } from "lucide-react"
 
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -121,9 +121,9 @@ function MarkdownMessage({ text }: { text: string }) {
 
 function ThinkingBubble() {
   return (
-    <div>
-      <span className="num text-[10.5px] font-medium uppercase tracking-[0.16em] copper">JARVIS</span>
-      <span className="mt-1.5 flex gap-1">
+    <div className="grid grid-cols-[4.25rem_minmax(0,1fr)] gap-3">
+      <span className="num pt-0.5 text-[10.5px] font-medium uppercase tracking-[0.16em] copper">JARVIS</span>
+      <span className="flex h-5 items-center gap-1">
         <span className="h-1 w-1 animate-pulse rounded-full bg-copper [animation-delay:-0.3s]" />
         <span className="h-1 w-1 animate-pulse rounded-full bg-copper [animation-delay:-0.15s]" />
         <span className="h-1 w-1 animate-pulse rounded-full bg-copper" />
@@ -350,8 +350,8 @@ export function MasterInput({ tasks = [] }: MasterInputProps) {
   }
 
   return (
-    <section className="flex flex-col">
-      <header className="mb-3 flex items-baseline justify-between gap-2">
+    <section className="flex min-h-0 flex-col">
+      <header className="mb-5 flex items-center justify-between gap-2">
         <h2 className="eyebrow">Secretary</h2>
         <span className="num flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
           <span
@@ -370,19 +370,22 @@ export function MasterInput({ tasks = [] }: MasterInputProps) {
 
       <div
         ref={transcriptRef}
-        className="h-[260px] overflow-y-auto border-t border-rule"
+        className="h-[270px] overflow-y-auto pr-1"
       >
-        <div className="space-y-4 py-4">
+        <div className="space-y-6">
           {transcript.map((entry) => (
-            <div key={entry.id}>
+            <article
+              key={entry.id}
+              className="grid grid-cols-[4.25rem_minmax(0,1fr)] gap-3"
+            >
               <span
-                className={`num text-[10.5px] font-medium uppercase tracking-[0.16em] ${
+                className={`num pt-0.5 text-[10.5px] font-medium uppercase tracking-[0.16em] ${
                   entry.role === "user" ? "text-muted-foreground" : "copper"
                 }`}
               >
                 {entry.role === "user" ? "You" : "JARVIS"}
               </span>
-              <div className="mt-1.5 min-w-0">
+              <div className="min-w-0">
                 {entry.role === "assistant" ? (
                   <MarkdownMessage text={entry.text} />
                 ) : (
@@ -398,26 +401,30 @@ export function MasterInput({ tasks = [] }: MasterInputProps) {
                 )}
                 {entry.toolCalls && <ToolCallReceipt toolCalls={entry.toolCalls} />}
               </div>
-            </div>
+            </article>
           ))}
-          {status === "submitting" && <ThinkingBubble />}
-          <div ref={transcriptBottomRef} />
+          {status === "submitting" ? (
+            <div>
+              <ThinkingBubble />
+            </div>
+          ) : null}
         </div>
+        <div ref={transcriptBottomRef} />
       </div>
 
       {errorMessage && (
         <p className="mt-2 text-[12px] text-destructive">{errorMessage}</p>
       )}
 
-      <div className="group/composer relative border-t border-rule transition-colors focus-within:border-copper">
-        <div className="flex items-end gap-2 pt-3">
+      <div className="mt-7">
+        <div className="group/composer flex min-h-11 items-end gap-2 py-2">
           <Textarea
             placeholder="Message JARVIS…"
             value={message}
             onChange={(event) => setMessage(event.target.value)}
             onKeyDown={handleKeyDown}
             aria-label="Secretary input"
-            className="min-h-[44px] resize-none border-0 bg-transparent p-0 text-[14px] leading-[1.55] text-foreground shadow-none placeholder:text-muted-foreground/70 focus-visible:ring-0"
+            className="max-h-[118px] min-h-[32px] resize-none rounded-none border-0 bg-transparent p-0 pt-1 text-[14px] leading-[1.55] text-foreground shadow-none outline-none placeholder:text-muted-foreground/65 focus-visible:ring-0 dark:bg-transparent"
           />
           <Tooltip>
             <TooltipTrigger asChild>
@@ -426,7 +433,7 @@ export function MasterInput({ tasks = [] }: MasterInputProps) {
                 onClick={handleSubmit}
                 disabled={status === "submitting" || !message.trim()}
                 aria-label="Send (Enter)"
-                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-sm transition-colors disabled:opacity-30 ${
+                className={`mb-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-sm transition-colors disabled:opacity-30 ${
                   message.trim() && status !== "submitting"
                     ? "text-copper hover:bg-copper-soft"
                     : "text-muted-foreground"
@@ -435,7 +442,7 @@ export function MasterInput({ tasks = [] }: MasterInputProps) {
                 {status === "submitting" ? (
                   <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.75} />
                 ) : (
-                  <Send className="h-4 w-4" strokeWidth={1.75} />
+                  <ArrowUp className="h-4 w-4" strokeWidth={1.85} />
                 )}
               </button>
             </TooltipTrigger>
@@ -444,8 +451,8 @@ export function MasterInput({ tasks = [] }: MasterInputProps) {
         </div>
       </div>
 
-      <div className="mt-3">
-        <div className="flex gap-3">
+      <div className="mt-4">
+        <div className="flex h-8 items-center gap-4">
           {(["availability", "memory"] as const).map((key) => {
             const open = openContext === key
             return (
@@ -453,8 +460,10 @@ export function MasterInput({ tasks = [] }: MasterInputProps) {
                 key={key}
                 type="button"
                 onClick={() => toggleContext(key)}
-                className={`group/chip flex items-center gap-1 text-[10.5px] font-medium uppercase tracking-[0.16em] transition-colors ${
-                  open ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+                className={`group/chip flex h-7 items-center gap-1.5 border-b border-transparent text-[10.5px] font-medium uppercase tracking-[0.16em] transition-colors ${
+                  open
+                    ? "border-copper/70 text-foreground"
+                    : "text-muted-foreground hover:border-rule-strong hover:text-foreground"
                 }`}
               >
                 <span className="num">{key}</span>
@@ -468,7 +477,7 @@ export function MasterInput({ tasks = [] }: MasterInputProps) {
         </div>
 
         {openContext === "availability" ? (
-          <div className="mt-3 space-y-2.5">
+          <div className="mt-2 space-y-2.5 bg-muted/20 px-3 py-3">
             {context ? (
               <>
                 <p className="whitespace-pre-line text-[13px] leading-[1.55] text-muted-foreground">
@@ -501,7 +510,7 @@ export function MasterInput({ tasks = [] }: MasterInputProps) {
         ) : null}
 
         {openContext === "memory" ? (
-          <div className="mt-3 space-y-2.5">
+          <div className="mt-2 space-y-2.5 bg-muted/20 px-3 py-3">
             {context ? (
               <>
                 <p className="whitespace-pre-line text-[13px] leading-[1.55] text-muted-foreground">
@@ -509,7 +518,7 @@ export function MasterInput({ tasks = [] }: MasterInputProps) {
                 </p>
                 <ul className="space-y-2">
                   {context.memoryEntries.map((entry) => (
-                    <li key={entry.id} className="border-l border-rule pl-2.5">
+                    <li key={entry.id}>
                       <p className="text-[13px] leading-snug text-foreground">{entry.insight}</p>
                       <p className="num mt-0.5 text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground">
                         {entry.category} · {new Date(entry.createdAt).toLocaleDateString()}
