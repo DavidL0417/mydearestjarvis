@@ -106,8 +106,8 @@
 }
 
 @theme inline {
-  --font-sans: 'Geist', 'Geist Fallback';
-  --font-mono: 'Geist Mono', 'Geist Mono Fallback';
+  --font-sans: var(--font-jarvis-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jarvis-mono), ui-monospace, 'SFMono-Regular', monospace;
   --font-serif: var(--font-sans);
 
   --color-background: var(--background);
@@ -165,7 +165,9 @@
     @apply min-h-screen bg-background text-foreground;
   }
   body {
-    font-feature-settings: 'ss01', 'cv11';
+    font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1;
+    font-variant-numeric: proportional-nums;
+    text-rendering: optimizeLegibility;
   }
   ::selection {
     background: var(--copper-soft);
@@ -193,17 +195,17 @@
     background-color: var(--rule-strong);
   }
   .num {
-    font-family: var(--font-mono);
-    font-feature-settings: 'tnum', 'cv11', 'zero';
+    font-family: var(--font-sans);
+    font-feature-settings: 'tnum' 1, 'zero' 1, 'kern' 1;
     font-variant-numeric: tabular-nums;
-    letter-spacing: 0;
+    letter-spacing: 0 !important;
   }
   .eyebrow {
-    font-family: var(--font-mono);
+    font-family: var(--font-sans);
     font-size: 11px;
-    font-weight: 500;
+    font-weight: 600;
     line-height: 1;
-    letter-spacing: 0.16em;
+    letter-spacing: 0;
     text-transform: uppercase;
     color: var(--muted-foreground);
   }

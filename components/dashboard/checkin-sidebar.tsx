@@ -114,7 +114,7 @@ export function CheckInSidebar({
       <header className="mb-4 flex items-baseline justify-between gap-2">
         <div className="flex items-baseline gap-2">
           <h2 className="eyebrow">Check-in</h2>
-          <span className="num text-[11px] font-medium uppercase tracking-[0.14em] copper">
+          <span className="num text-[11px] font-medium uppercase copper">
             {pendingEvents.length}
           </span>
         </div>
@@ -150,7 +150,7 @@ export function CheckInSidebar({
                 )}
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[13.5px] leading-[1.35] text-foreground">{event.title}</p>
-                  <p className="num mt-1 text-[10.5px] uppercase tracking-[0.12em] text-muted-foreground">
+                  <p className="num mt-1 text-[10.5px] uppercase text-muted-foreground">
                     Ends {formatEventWindow(event)} · {event.source}
                   </p>
                 </div>
@@ -171,7 +171,7 @@ export function CheckInSidebar({
                           }))
                         }
                         aria-pressed={active}
-                        className={`num flex h-5 w-5 items-center justify-center rounded-[2px] text-[10px] font-medium uppercase tracking-[0.12em] transition-colors ${
+                        className={`num flex h-5 w-5 items-center justify-center rounded-[2px] text-[10px] font-medium uppercase transition-colors ${
                           active ? "bg-copper-soft text-foreground" : "text-muted-foreground hover:text-foreground"
                         }`}
                       >
@@ -209,7 +209,7 @@ export function CheckInSidebar({
                   type="button"
                   onClick={() => void handleSave(event)}
                   disabled={isSaving}
-                  className="num ml-auto flex h-7 items-center gap-1.5 rounded-sm bg-copper px-2.5 text-[10.5px] font-medium uppercase tracking-[0.12em] text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+                  className="num ml-auto flex h-7 items-center gap-1.5 rounded-sm bg-copper px-2.5 text-[10.5px] font-medium uppercase text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
                 >
                   {isSaving ? (
                     <Loader2 className="h-3 w-3 animate-spin" />

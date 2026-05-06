@@ -633,6 +633,7 @@ export interface ReplanRequest {
 export interface GoogleCalendarSyncResponse {
   success: boolean
   connected: boolean
+  needsAuthorization?: boolean
   events: ScheduleEvent[]
   calendars: UserCalendar[]
   error?: string

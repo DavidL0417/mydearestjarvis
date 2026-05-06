@@ -458,7 +458,7 @@ export function CalendarsSidebar({
                         {calendar.name}
                       </button>
                       {sourceLabel ? (
-                        <span className="num text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
+                        <span className="num text-[9px] uppercase text-muted-foreground">
                           {sourceLabel}
                         </span>
                       ) : null}
@@ -530,7 +530,7 @@ export function CalendarsSidebar({
                   className="flex h-7 flex-1 items-center justify-center gap-1.5 rounded-sm border border-rule text-[11px] text-foreground hover:bg-accent"
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  <span className="num uppercase tracking-[0.12em] text-muted-foreground">New</span>
+                  <span className="num uppercase text-muted-foreground">New</span>
                 </button>
               </TooltipTrigger>
               <TooltipContent side="top" className="text-[11px]">New calendar</TooltipContent>
@@ -544,7 +544,7 @@ export function CalendarsSidebar({
                   className="flex h-7 flex-1 items-center justify-center gap-1.5 rounded-sm border border-rule text-[11px] text-foreground hover:bg-accent"
                 >
                   <Download className="h-3.5 w-3.5" />
-                  <span className="num uppercase tracking-[0.12em] text-muted-foreground">ICS</span>
+                  <span className="num uppercase text-muted-foreground">ICS</span>
                 </button>
               </TooltipTrigger>
               <TooltipContent side="top" className="text-[11px]">Import .ics</TooltipContent>
@@ -556,7 +556,7 @@ export function CalendarsSidebar({
       <Dialog open={newCalendarDialogOpen} onOpenChange={setNewCalendarDialogOpen}>
         <DialogContent className="sm:max-w-[420px]">
           <DialogHeader>
-            <DialogTitle className="text-xl font-semibold tracking-tight">New calendar</DialogTitle>
+            <DialogTitle className="text-xl font-semibold">New calendar</DialogTitle>
             <DialogDescription className="text-[12px]">
               Name and color. Mutability comes next.
             </DialogDescription>
@@ -604,7 +604,7 @@ export function CalendarsSidebar({
       <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
         <DialogContent className="sm:max-w-[420px]">
           <DialogHeader>
-            <DialogTitle className="text-xl font-semibold tracking-tight">Import .ics</DialogTitle>
+            <DialogTitle className="text-xl font-semibold">Import .ics</DialogTitle>
             <DialogDescription className="text-[12px]">
               Source URL or path, then mutability.
             </DialogDescription>
@@ -661,7 +661,7 @@ export function CalendarsSidebar({
       <Dialog open={Boolean(editingCalendar)} onOpenChange={(open) => !open && setEditingCalendar(null)}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle className="text-xl font-semibold tracking-tight">Rename</DialogTitle>
+            <DialogTitle className="text-xl font-semibold">Rename</DialogTitle>
           </DialogHeader>
           <div className="space-y-1.5 py-2">
             <label className="eyebrow">Name</label>

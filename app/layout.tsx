@@ -1,10 +1,20 @@
 import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
+import { IBM_Plex_Mono, IBM_Plex_Sans } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
-const geistSans = Geist({ subsets: ['latin'], variable: '--font-sans' })
-const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-mono' })
+const plexSans = IBM_Plex_Sans({
+  subsets: ['latin'],
+  weight: 'variable',
+  variable: '--font-jarvis-sans',
+  display: 'swap',
+})
+const plexMono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--font-jarvis-mono',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   title: 'JARVIS',
@@ -36,7 +46,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`dark ${geistSans.variable} ${geistMono.variable}`}
+      className={`dark ${plexSans.variable} ${plexMono.variable}`}
     >
       <body className="font-sans antialiased bg-background text-foreground">
         {children}

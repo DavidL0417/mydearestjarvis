@@ -16,9 +16,10 @@ Dark, restrained. OKLCH neutrals tinted toward cool indigo (hue ~282). Single ru
 
 ## Typography (current)
 
-- Sans: Geist
-- Mono: Geist Mono
-- Hierarchy is flat: most type sits at text-xs / text-sm. Headings rarely exceed text-base. Weight contrast is the only differentiator.
+- Sans: IBM Plex Sans
+- Mono: IBM Plex Mono, reserved for true technical/code contexts.
+- Numerals use tabular settings without forcing operational labels into monospaced type.
+- Hierarchy is still compact, but the interface should read as legible operational software rather than terminal cosplay.
 
 ## Layout (current)
 

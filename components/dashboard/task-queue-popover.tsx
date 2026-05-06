@@ -51,7 +51,7 @@ export function TaskQueuePopover({ tasks, onToggleComplete }: TaskQueuePopoverPr
               className="flex h-8 items-center gap-1.5 rounded-sm border border-rule px-2.5 text-[12px] text-foreground hover:bg-accent hover:border-rule-strong"
             >
               <ListTodo className="h-4 w-4 text-muted-foreground" strokeWidth={1.75} />
-              <span className="num text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+              <span className="num text-[11px] font-medium uppercase text-muted-foreground">
                 {sortedTasks.length}
               </span>
             </button>
@@ -67,7 +67,7 @@ export function TaskQueuePopover({ tasks, onToggleComplete }: TaskQueuePopoverPr
         <div className="border-b border-rule-strong px-3.5 py-2.5">
           <div className="flex items-baseline justify-between gap-2">
             <h3 className="eyebrow">Queue</h3>
-            <span className="num text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            <span className="num text-[11px] font-medium uppercase text-muted-foreground">
               {sortedTasks.length}
             </span>
           </div>
@@ -85,7 +85,7 @@ export function TaskQueuePopover({ tasks, onToggleComplete }: TaskQueuePopoverPr
                     key={task.id}
                     className="flex items-baseline gap-3 border-b border-rule px-3.5 py-2.5 last:border-b-0"
                   >
-                    <span className="num w-6 shrink-0 text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                    <span className="num w-6 shrink-0 text-[11px] font-medium uppercase text-muted-foreground">
                       {String(index + 1).padStart(2, "0")}
                     </span>
                     <button
@@ -110,8 +110,8 @@ export function TaskQueuePopover({ tasks, onToggleComplete }: TaskQueuePopoverPr
                       >
                         {task.title}
                       </p>
-                      <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11.5px] text-muted-foreground">
-                        <span className="num font-medium uppercase tracking-[0.12em]">{task.priority}</span>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-muted-foreground">
+                        <span className="num font-medium uppercase">{task.priority}</span>
                         {deadlineLabel ? (
                           <span className="num inline-flex items-center gap-1">
                             <CalendarClock className="h-3 w-3" />

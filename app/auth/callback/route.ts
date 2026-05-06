@@ -2,6 +2,7 @@
 // DO NOT MODIFY UNLESS BACKEND OWNER
 
 import { NextResponse } from "next/server"
+import type { Session } from "@supabase/supabase-js"
 
 import { getGoogleTokensFromSession, upsertGoogleCalendarIntegration } from "@/lib/supabase/google-calendar-integration"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
@@ -16,22 +17,38 @@ function getSafeRedirectPath(candidate: string | null) {
   return candidate
 }
 
-async function bootstrapAuthenticatedGoogleUser() {
+function getRedirectOrigin(request: Request, fallbackOrigin: string) {
+  const isLocal = process.env.NODE_ENV === "development"
+  const forwardedHost = request.headers.get("x-forwarded-host")
+  const forwardedProto = request.headers.get("x-forwarded-proto") || "https"
+
+  if (!isLocal && forwardedHost) {
+    return `${forwardedProto}://${forwardedHost}`
+  }
+
+  return fallbackOrigin
+}
+
+async function bootstrapAuthenticatedGoogleUser(oauthSession: Session | null) {
   const supabase = await createSupabaseServerClient()
-  const [{ data: userData }, { data: sessionData }] = await Promise.all([
-    supabase.auth.getUser(),
-    supabase.auth.getSession(),
-  ])
+  const { data: userData } = await supabase.auth.getUser()
 
   if (!userData.user) {
     return
+  }
+
+  let googleTokens = getGoogleTokensFromSession(oauthSession)
+
+  if (!googleTokens.accessToken && !googleTokens.refreshToken) {
+    const { data: sessionData } = await supabase.auth.getSession()
+    googleTokens = getGoogleTokensFromSession(sessionData.session)
   }
 
   const profile = await getOrCreateUserProfile(userData.user)
   await upsertGoogleCalendarIntegration({
     userId: profile.id,
     authUser: userData.user,
-    ...getGoogleTokensFromSession(sessionData.session),
+    ...googleTokens,
   })
   await ensureTaskCalendarForUser(profile.id)
 }
@@ -43,20 +60,20 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = await createSupabaseServerClient()
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (!error) {
       try {
-        await bootstrapAuthenticatedGoogleUser()
+        await bootstrapAuthenticatedGoogleUser(data.session)
       } catch (bootstrapError) {
         console.error("Google auth callback bootstrap failed after session exchange.", bootstrapError)
       }
 
-      return NextResponse.redirect(new URL(next, requestUrl.origin))
+      return NextResponse.redirect(new URL(next, getRedirectOrigin(request, requestUrl.origin)))
     }
   }
 
-  return NextResponse.redirect(new URL("/?authError=callback", requestUrl.origin))
+  return NextResponse.redirect(new URL("/?authError=callback", getRedirectOrigin(request, requestUrl.origin)))
 }
 
 // ##### END BACKEND #####

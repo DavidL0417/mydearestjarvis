@@ -7,6 +7,7 @@
 - Icon-first.
 - Very little visible instructional text.
 - Restrained dark neutral palette with a few semantic accents.
+- Typography uses IBM Plex Sans for the interface and reserves IBM Plex Mono for true code/technical contexts. Tabular numerals should not make labels feel like a terminal.
 
 ## Interaction Rules
 

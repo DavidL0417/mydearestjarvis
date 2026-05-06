@@ -7,6 +7,7 @@ import { Loader2, LogIn, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { startGoogleOAuthRedirect } from "@/lib/supabase/auth-actions"
 import { tryCreateSupabaseBrowserClient } from "@/lib/supabase/client"
 
 type AuthViewState =
@@ -99,24 +100,9 @@ export function AuthControls() {
 
     setIsMutating(true)
 
-    const next = `${window.location.pathname}${window.location.search}`
-    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo,
-        scopes: [
-          "https://www.googleapis.com/auth/calendar.readonly",
-          "https://www.googleapis.com/auth/calendar.events",
-        ].join(" "),
-        queryParams: {
-          access_type: "offline",
-          prompt: "consent",
-        },
-      },
-    })
-
-    if (error) {
+    try {
+      await startGoogleOAuthRedirect()
+    } catch (error) {
       console.error("Failed to start Google sign-in", error)
       setIsMutating(false)
     }

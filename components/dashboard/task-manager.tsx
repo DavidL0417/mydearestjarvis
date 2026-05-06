@@ -347,7 +347,7 @@ export function TaskManager({
         key={task.id}
         className="group flex items-baseline gap-3 rounded-sm bg-muted/15 px-2.5 py-2.5 transition-colors hover:bg-muted/25"
       >
-        <span className="num w-6 shrink-0 text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+        <span className="num w-6 shrink-0 text-[11px] font-medium uppercase text-muted-foreground">
           {String(index + 1).padStart(2, "0")}
         </span>
         <button
@@ -374,12 +374,12 @@ export function TaskManager({
           </p>
           <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11.5px] text-muted-foreground">
             {overdue ? (
-              <span className="num inline-flex items-center gap-1 font-medium uppercase tracking-[0.12em] text-destructive">
+              <span className="num inline-flex items-center gap-1 font-medium uppercase text-destructive">
                 <AlertCircle className="h-3 w-3" /> Overdue
               </span>
             ) : null}
             {isScheduledTask && !overdue && task.status !== "completed" ? (
-              <span className="num inline-flex items-center gap-1 font-medium uppercase tracking-[0.12em] copper">
+              <span className="num inline-flex items-center gap-1 font-medium uppercase copper">
                 Scheduled
               </span>
             ) : null}
@@ -461,7 +461,7 @@ export function TaskManager({
       <header className="mb-4 flex items-center justify-between gap-2">
         <div className="flex items-baseline gap-2">
           <h2 className="eyebrow">{headerTitle}</h2>
-          <span className="num text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+          <span className="num text-[11px] font-medium uppercase text-muted-foreground">
             {activeTasks.length}
           </span>
         </div>
@@ -564,7 +564,7 @@ export function TaskManager({
           <div key={section.id}>
             <div className="mb-2 flex items-baseline gap-2">
               <h3 className="eyebrow">{section.title}</h3>
-              <span className="num text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+              <span className="num text-[11px] font-medium uppercase text-muted-foreground">
                 {section.tasks.length}
               </span>
             </div>
@@ -588,7 +588,7 @@ export function TaskManager({
             aria-expanded={showCompleted}
           >
             <h3 className="eyebrow group-hover:text-foreground">Completed</h3>
-            <span className="num text-[11px] font-medium uppercase tracking-[0.14em]">
+            <span className="num text-[11px] font-medium uppercase">
               {completedTasks.length}
             </span>
             {showCompleted ? (

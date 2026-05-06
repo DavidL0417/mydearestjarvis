@@ -39,7 +39,7 @@ export function DashboardHeader({
           <Book className="w-5 h-5" />
         </Button>
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.32em] text-muted-foreground">
+            <p className="text-[10px] font-semibold uppercase text-muted-foreground">
               JARVIS Command Deck
             </p>
             <h1 className="text-xl font-bold text-foreground">Today</h1>

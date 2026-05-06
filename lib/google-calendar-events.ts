@@ -19,6 +19,12 @@ const GOOGLE_EVENT_LOOKBACK_DAYS = 90
 const GOOGLE_EVENT_LOOKAHEAD_DAYS = 180
 const GOOGLE_CALENDAR_ID_PREFIX = "google-calendar:"
 
+function isGoogleAuthorizationFailure(message: string) {
+  return /authorization|reauthorization|unauthorized|invalid authentication|invalid credentials|status 401|not connected/i.test(
+    message,
+  )
+}
+
 interface GoogleCalendarListItem {
   id?: string
   summary?: string
@@ -434,13 +440,15 @@ export async function getGoogleCalendarMirrorForUser(userId: string): Promise<Go
     loadMirroredGoogleCalendarEventsForUser(userId),
     listMirroredGoogleCalendarsForUser(userId),
   ])
+  const needsAuthorization = !integration || integration.status === "needs_reauth"
 
   return {
     success: true,
     connected: integration?.status === "connected",
+    needsAuthorization,
     events,
     calendars,
-    error: integration && integration.status !== "connected" ? "Google Calendar needs reauthorization." : undefined,
+    error: needsAuthorization ? "Google Calendar needs reauthorization." : undefined,
   }
 }
 
@@ -453,6 +461,7 @@ export async function syncGoogleCalendarEventsForUser(userId: string): Promise<G
       ...mirror,
       success: false,
       connected: false,
+      needsAuthorization: true,
       error: "Google Calendar is not connected or needs reauthorization.",
     }
   }
@@ -494,12 +503,14 @@ export async function syncGoogleCalendarEventsForUser(userId: string): Promise<G
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Google Calendar sync failed."
-    await markGoogleIntegrationStatus(userId, "error", message)
+    const needsAuthorization = isGoogleAuthorizationFailure(message)
+    await markGoogleIntegrationStatus(userId, needsAuthorization ? "needs_reauth" : "error", message)
     const mirror = await getGoogleCalendarMirrorForUser(userId)
     return {
       ...mirror,
       success: false,
       connected: false,
+      needsAuthorization,
       error: message,
     }
   }

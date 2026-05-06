@@ -9,8 +9,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { CalendarPlus, ChevronLeft, ChevronRight, Loader2, MapPin, RefreshCw, X } from "lucide-react"
-import { fetchGoogleEvents } from "@/lib/supabase/auth-actions"
+import { CalendarPlus, ChevronLeft, ChevronRight, KeyRound, Loader2, MapPin, RefreshCw, X } from "lucide-react"
+import {
+  fetchGoogleEvents,
+  isGoogleCalendarAuthorizationError,
+  startGoogleOAuthRedirect,
+} from "@/lib/supabase/auth-actions"
 import {
   buildTaskReminderDescription,
   getTaskDueTimeLabel,
@@ -275,7 +279,10 @@ export function ScheduleView({
     return new Date(today.getFullYear(), today.getMonth(), 1)
   })
   const [isGoogleEventsLoading, setIsGoogleEventsLoading] = useState(false)
+  const [isAuthorizingGoogle, setIsAuthorizingGoogle] = useState(false)
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle")
+  const [syncErrorMessage, setSyncErrorMessage] = useState<string | null>(null)
+  const [syncNeedsAuthorization, setSyncNeedsAuthorization] = useState(false)
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null)
   const [selectedTaskReminder, setSelectedTaskReminder] = useState<CalendarEvent | null>(null)
   const [now, setNow] = useState(() => new Date())
@@ -303,6 +310,8 @@ export function ScheduleView({
     }
 
     setSyncStatus("syncing")
+    setSyncErrorMessage(null)
+    setSyncNeedsAuthorization(false)
     setIsGoogleEventsLoading(true)
 
     let didTimeout = false
@@ -321,12 +330,23 @@ export function ScheduleView({
       setLastSyncedAt(new Date().toISOString())
       window.dispatchEvent(new CustomEvent("jarvis-dashboard-refresh"))
       setSyncStatus("success")
+      setSyncErrorMessage(null)
+      setSyncNeedsAuthorization(false)
       successResetTimeoutRef.current = setTimeout(() => {
         setSyncStatus("idle")
       }, 3_000)
     } catch (error) {
       if (!didTimeout) {
         console.error("Failed to fetch Google Events", error)
+        const needsAuthorization = isGoogleCalendarAuthorizationError(error)
+        setSyncErrorMessage(
+          needsAuthorization
+            ? "Google Calendar needs authorization."
+            : error instanceof Error
+              ? error.message
+              : "Google Calendar sync failed.",
+        )
+        setSyncNeedsAuthorization(needsAuthorization)
         setSyncStatus("error")
       }
     } finally {
@@ -335,14 +355,41 @@ export function ScheduleView({
     }
   }, [])
 
+  const handleAuthorizeGoogle = useCallback(async () => {
+    if (isAuthorizingGoogle) {
+      return
+    }
+
+    setIsAuthorizingGoogle(true)
+
+    try {
+      await startGoogleOAuthRedirect()
+    } catch (error) {
+      console.error("Failed to start Google authorization", error)
+      setSyncErrorMessage(
+        error instanceof Error ? error.message : "Could not start Google authorization.",
+      )
+      setSyncNeedsAuthorization(true)
+      setSyncStatus("error")
+      setIsAuthorizingGoogle(false)
+    }
+  }, [isAuthorizingGoogle])
+
   const handleSyncWithGoogle = async () => {
-    if (syncStatus === "syncing" || isGoogleEventsLoading) {
+    if (syncStatus === "syncing" || isGoogleEventsLoading || isAuthorizingGoogle) {
+      return
+    }
+    if (syncNeedsAuthorization) {
+      await handleAuthorizeGoogle()
       return
     }
     await syncGoogleEvents()
   }
 
   const formatLastSynced = () => {
+    if (syncNeedsAuthorization) {
+      return isAuthorizingGoogle ? "opening" : "authorize"
+    }
     if (!lastSyncedAt) {
       return isGoogleEventsLoading ? "syncing" : "never"
     }
@@ -556,7 +603,7 @@ export function ScheduleView({
       <Dialog open={selectedTaskReminder !== null} onOpenChange={(open) => !open && setSelectedTaskReminder(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-xl font-semibold tracking-tight">
+            <DialogTitle className="text-xl font-semibold">
               {selectedTaskReminder?.title ?? "Task"}
             </DialogTitle>
             <DialogDescription className="num text-[12px]">
@@ -570,18 +617,34 @@ export function ScheduleView({
       </Dialog>
 
       {syncStatus === "success" ? (
-        <div className="num fixed right-6 top-20 z-[200] flex items-center gap-2 rounded-sm border border-rule-strong bg-popover px-2.5 py-1.5 text-[11px] uppercase tracking-[0.14em] text-foreground shadow-lg">
+        <div className="num fixed right-6 top-20 z-[200] flex items-center gap-2 rounded-sm border border-rule-strong bg-popover px-2.5 py-1.5 text-[11px] uppercase text-foreground shadow-lg">
           <span className="h-1.5 w-1.5 rounded-full bg-copper" aria-hidden="true" />
           Synced
         </div>
       ) : null}
       {syncStatus === "error" ? (
-        <div className="num fixed right-6 top-20 z-[200] flex max-w-xs items-center gap-2.5 rounded-sm border border-destructive/50 bg-popover px-2.5 py-1.5 text-[11px] tracking-[0.04em] text-destructive shadow-lg">
+        <div className="num fixed right-6 top-20 z-[200] flex max-w-sm items-center gap-2.5 rounded-sm border border-destructive/50 bg-popover px-2.5 py-1.5 text-[11px] text-destructive shadow-lg">
           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-destructive" aria-hidden="true" />
-          <span className="leading-tight">Sync failed. Check Google Calendar.</span>
+          <span className="leading-tight">
+            {syncErrorMessage ?? "Google Calendar sync failed."}
+          </span>
+          {syncNeedsAuthorization ? (
+            <button
+              type="button"
+              onClick={handleAuthorizeGoogle}
+              disabled={isAuthorizingGoogle}
+              className="shrink-0 rounded-sm border border-destructive/40 px-2 py-1 text-[10px] uppercase text-destructive hover:bg-destructive/10 disabled:opacity-50"
+            >
+              {isAuthorizingGoogle ? "Opening" : "Authorize"}
+            </button>
+          ) : null}
           <button
             type="button"
-            onClick={() => setSyncStatus("idle")}
+            onClick={() => {
+              setSyncStatus("idle")
+              setSyncErrorMessage(null)
+              setSyncNeedsAuthorization(false)
+            }}
             aria-label="Dismiss"
             className="ml-1 shrink-0 text-destructive/70 hover:text-destructive"
           >
@@ -591,12 +654,12 @@ export function ScheduleView({
       ) : null}
 
       <header className="mb-4 flex flex-wrap items-baseline gap-x-4 gap-y-1.5">
-        <h1 className="text-[28px] font-semibold leading-none tracking-tight text-foreground">
+        <h1 className="text-[28px] font-semibold leading-none text-foreground">
           {viewMode === "1month"
             ? `${monthNames[monthViewDate.getMonth()]} ${monthViewDate.getFullYear()}`
             : formatDateRange()}
         </h1>
-        <span className="num inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+        <span className="num inline-flex items-center gap-1.5 text-[11px] font-medium uppercase text-muted-foreground">
           <span
             className={`h-1.5 w-1.5 rounded-full ${
               plannerStatus === "Ready"
@@ -630,7 +693,7 @@ export function ScheduleView({
               onClick={() => onSchedule?.()}
               disabled={isScheduling || !onSchedule}
               aria-label="Run scheduler"
-              className="flex h-8 items-center gap-1.5 rounded-sm bg-copper px-3 text-[12px] font-medium uppercase tracking-[0.12em] text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+              className="flex h-8 items-center gap-1.5 rounded-sm bg-copper px-3 text-[12px] font-medium uppercase text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
             >
               {isScheduling ? (
                 <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2} />
@@ -653,22 +716,24 @@ export function ScheduleView({
               <button
                 type="button"
                 onClick={handleSyncWithGoogle}
-                disabled={syncStatus === "syncing" || isGoogleEventsLoading}
-                aria-label="Sync Google"
+                disabled={syncStatus === "syncing" || isGoogleEventsLoading || isAuthorizingGoogle}
+                aria-label={syncNeedsAuthorization ? "Authorize Google Calendar" : "Sync Google"}
                 className="flex h-8 items-center gap-1.5 rounded-sm border border-rule px-2.5 text-[12px] text-foreground hover:bg-accent hover:border-rule-strong disabled:opacity-50"
               >
-                {syncStatus === "syncing" || isGoogleEventsLoading ? (
+                {syncStatus === "syncing" || isGoogleEventsLoading || isAuthorizingGoogle ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : syncNeedsAuthorization ? (
+                  <KeyRound className="h-3.5 w-3.5" />
                 ) : (
                   <RefreshCw className="h-3.5 w-3.5" />
                 )}
-                <span className="num text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground">
+                <span className="num text-[10.5px] uppercase text-muted-foreground">
                   {formatLastSynced()}
                 </span>
               </button>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="text-[11px]">
-              Sync Google
+              {syncNeedsAuthorization ? "Authorize Google Calendar" : "Sync Google"}
             </TooltipContent>
           </Tooltip>
         </div>
@@ -690,7 +755,7 @@ export function ScheduleView({
           <button
             type="button"
             onClick={handleGoToToday}
-            className="num flex h-8 items-center rounded-sm px-2.5 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground hover:bg-accent hover:text-foreground"
+            className="num flex h-8 items-center rounded-sm px-2.5 text-[11px] font-medium uppercase text-muted-foreground hover:bg-accent hover:text-foreground"
           >
             Today
           </button>
@@ -718,7 +783,7 @@ export function ScheduleView({
                 type="button"
                 onClick={() => setViewMode(mode.value)}
                 aria-pressed={active}
-                className={`num flex h-8 items-center rounded-sm px-2.5 text-[11px] font-medium uppercase tracking-[0.14em] transition-colors ${
+                className={`num flex h-8 items-center rounded-sm px-2.5 text-[11px] font-medium uppercase transition-colors ${
                   active ? "bg-copper-soft text-copper" : "text-muted-foreground hover:bg-accent hover:text-foreground"
                 }`}
               >
@@ -733,7 +798,7 @@ export function ScheduleView({
         <div className="flex flex-1 flex-col">
           <div className="mb-2 grid grid-cols-7 gap-1">
             {dayNamesShort.map((day) => (
-              <div key={day} className="num text-center text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+              <div key={day} className="num text-center text-[10px] uppercase text-muted-foreground">
                 {day}
               </div>
             ))}
@@ -742,15 +807,6 @@ export function ScheduleView({
         </div>
       ) : (
         <div ref={gridScrollRef} className="relative flex-1 overflow-auto">
-          {isGoogleEventsLoading && !hasVisibleEvents ? (
-            <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-              <div className="num flex items-center gap-2 rounded-sm border border-rule bg-popover px-3 py-1.5 text-[11px] uppercase tracking-[0.12em] text-foreground">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Loading
-              </div>
-            </div>
-          ) : null}
-
           {/* Day headers */}
           <div
             className={`sticky top-0 z-10 grid bg-background ${dayColumnTemplate} border-b border-rule-strong`}
@@ -761,7 +817,7 @@ export function ScheduleView({
                 key={i}
                 className="flex h-14 flex-col items-start justify-center gap-1 border-l border-rule px-2.5"
               >
-                <span className="num text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                <span className="num text-[11px] font-medium uppercase text-muted-foreground">
                   {dayNamesShort[date.getDay()]}
                 </span>
                 <span
@@ -779,7 +835,7 @@ export function ScheduleView({
           <div
             className={`sticky top-14 z-[9] grid bg-background ${dayColumnTemplate} border-b border-rule`}
           >
-            <div className="num flex min-h-9 items-start justify-end px-2 py-1.5 text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+            <div className="num flex min-h-9 items-start justify-end px-2 py-1.5 text-[11px] font-medium uppercase text-muted-foreground">
               All
             </div>
             {displayDates.map((_, dayIndex) => {
@@ -797,7 +853,7 @@ export function ScheduleView({
                         type="button"
                         key={event.id}
                         onClick={() => setSelectedTaskReminder(event)}
-                        className="num flex w-full items-center gap-1 rounded-sm bg-copper-soft px-1.5 py-0.5 text-left text-[10px] uppercase tracking-[0.1em] text-foreground hover:bg-copper-soft hover:brightness-110"
+                        className="num flex w-full items-center gap-1 rounded-sm bg-copper-soft px-1.5 py-0.5 text-left text-[10px] uppercase text-foreground hover:bg-copper-soft hover:brightness-110"
                       >
                         <span className="copper">●</span>
                         <span className="truncate">{event.title}</span>
@@ -825,7 +881,7 @@ export function ScheduleView({
               {Array.from({ length: 24 }).map((_, i) => (
                 <div
                   key={i}
-                  className="num h-[48px] pr-2.5 pt-1 text-right text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground tabular-nums"
+                  className="num h-[48px] pr-2.5 pt-1 text-right text-[11px] font-medium uppercase text-muted-foreground tabular-nums"
                 >
                   {i === 0 ? "" : formatHour(i)}
                 </div>
@@ -899,7 +955,7 @@ export function ScheduleView({
           </div>
           {!isGoogleEventsLoading && !hasVisibleEvents ? (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-              <p className="num text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+              <p className="num text-[11px] uppercase text-muted-foreground">
                 No events
               </p>
             </div>

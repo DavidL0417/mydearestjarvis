@@ -78,10 +78,10 @@ function ToolCallReceipt({ toolCalls }: { toolCalls: AssistantMessageResponse["t
 
         return (
           <div key={toolCall.id} className="flex items-baseline gap-2 text-[12px]">
-            <span className="num text-[10.5px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            <span className="num text-[10.5px] font-medium uppercase text-muted-foreground">
               {toolCall.tool}
             </span>
-            <span className={`num text-[10.5px] font-medium uppercase tracking-[0.14em] ${tone}`}>
+            <span className={`num text-[10.5px] font-medium uppercase ${tone}`}>
               {toolCall.status}
             </span>
             <span className="flex-1 truncate text-[12px] text-muted-foreground">
@@ -122,7 +122,7 @@ function MarkdownMessage({ text }: { text: string }) {
 function ThinkingBubble() {
   return (
     <div className="grid grid-cols-[4.25rem_minmax(0,1fr)] gap-3">
-      <span className="num pt-0.5 text-[10.5px] font-medium uppercase tracking-[0.16em] copper">JARVIS</span>
+      <span className="num pt-0.5 text-[10.5px] font-medium uppercase copper">JARVIS</span>
       <span className="flex h-5 items-center gap-1">
         <span className="h-1 w-1 animate-pulse rounded-full bg-copper [animation-delay:-0.3s]" />
         <span className="h-1 w-1 animate-pulse rounded-full bg-copper [animation-delay:-0.15s]" />
@@ -353,7 +353,7 @@ export function MasterInput({ tasks = [] }: MasterInputProps) {
     <section className="flex flex-col">
       <header className="mb-4 flex items-center justify-between gap-2">
         <h2 className="eyebrow">Secretary</h2>
-        <span className="num flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+        <span className="num flex items-center gap-1.5 text-[11px] font-medium uppercase text-muted-foreground">
           <span
             className={`h-1.5 w-1.5 rounded-full ${
               status === "submitting"
@@ -379,7 +379,7 @@ export function MasterInput({ tasks = [] }: MasterInputProps) {
               className="grid grid-cols-[4.25rem_minmax(0,1fr)] gap-3"
             >
               <span
-                className={`num pt-0.5 text-[10.5px] font-medium uppercase tracking-[0.16em] ${
+                className={`num pt-0.5 text-[10.5px] font-medium uppercase ${
                   entry.role === "user" ? "text-muted-foreground" : "copper"
                 }`}
               >
@@ -460,7 +460,7 @@ export function MasterInput({ tasks = [] }: MasterInputProps) {
                 key={key}
                 type="button"
                 onClick={() => toggleContext(key)}
-                className={`group/chip flex h-7 items-center gap-1.5 border-b border-transparent text-[10.5px] font-medium uppercase tracking-[0.16em] transition-colors ${
+                className={`group/chip flex h-7 items-center gap-1.5 border-b border-transparent text-[10.5px] font-medium uppercase transition-colors ${
                   open
                     ? "border-copper/70 text-foreground"
                     : "text-muted-foreground hover:border-rule-strong hover:text-foreground"
@@ -520,7 +520,7 @@ export function MasterInput({ tasks = [] }: MasterInputProps) {
                   {context.memoryEntries.map((entry) => (
                     <li key={entry.id}>
                       <p className="text-[13px] leading-snug text-foreground">{entry.insight}</p>
-                      <p className="num mt-0.5 text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground">
+                      <p className="num mt-0.5 text-[10.5px] uppercase text-muted-foreground">
                         {entry.category} · {new Date(entry.createdAt).toLocaleDateString()}
                       </p>
                     </li>

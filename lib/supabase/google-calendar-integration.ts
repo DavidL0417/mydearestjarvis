@@ -73,19 +73,40 @@ function resolveIntegrationStatus(
 
 async function getStoredGoogleTokenRow(userId: string) {
   const adminClient = createSupabaseAdminClient()
-  const { data, error } = await adminClient
-    .schema("app_private")
-    .from("integration_tokens")
-    .select("id, user_id, provider, access_token, refresh_token, expires_at, scope, created_at, updated_at")
-    .eq("user_id", userId)
-    .eq("provider", "google")
-    .maybeSingle<IntegrationTokenRow>()
+  const { data, error } = await adminClient.rpc("get_google_integration_token", {
+    token_user_id: userId,
+  })
 
   if (error) {
     throw new Error(error.message)
   }
 
-  return data
+  if (!Array.isArray(data) || data.length === 0) {
+    return null
+  }
+
+  return data[0] as IntegrationTokenRow
+}
+
+async function upsertGoogleTokenRow(input: {
+  userId: string
+  accessToken: string | null
+  refreshToken: string | null
+  expiresAt: string | null
+  scope: string | null
+}) {
+  const adminClient = createSupabaseAdminClient()
+  const { error } = await adminClient.rpc("upsert_google_integration_token", {
+    token_user_id: input.userId,
+    token_access_token: input.accessToken,
+    token_refresh_token: input.refreshToken,
+    token_expires_at: input.expiresAt,
+    token_scope: input.scope,
+  })
+
+  if (error) {
+    throw new Error(error.message)
+  }
 }
 
 export async function getStoredGoogleIntegration(userId: string): Promise<StoredGoogleIntegration | null> {
@@ -153,14 +174,13 @@ export async function upsertGoogleCalendarIntegration(input: UpsertGoogleIntegra
     scope: input.scope ?? existing?.scope ?? null,
   }
 
-  const { error: tokenError } = await adminClient
-    .schema("app_private")
-    .from("integration_tokens")
-    .upsert(tokenRow, { onConflict: "user_id,provider" })
-
-  if (tokenError) {
-    throw new Error(tokenError.message)
-  }
+  await upsertGoogleTokenRow({
+    userId: tokenRow.user_id,
+    accessToken: tokenRow.access_token,
+    refreshToken: tokenRow.refresh_token,
+    expiresAt: tokenRow.expires_at,
+    scope: tokenRow.scope,
+  })
 }
 
 export async function markGoogleIntegrationStatus(userId: string, status: UserIntegrationStatus, summary?: string) {
@@ -250,25 +270,13 @@ export async function refreshGoogleAccessToken(userId: string, refreshToken: str
       ? new Date(Date.now() + payload.expires_in * 1_000).toISOString()
       : null
 
-  const adminClient = createSupabaseAdminClient()
-  const { error } = await adminClient
-    .schema("app_private")
-    .from("integration_tokens")
-    .upsert(
-      {
-        user_id: userId,
-        provider: "google",
-        access_token: payload.access_token,
-        refresh_token: refreshToken,
-        expires_at: expiresAt,
-        scope: payload.scope ?? null,
-      },
-      { onConflict: "user_id,provider" },
-    )
-
-  if (error) {
-    throw new Error(error.message)
-  }
+  await upsertGoogleTokenRow({
+    userId,
+    accessToken: payload.access_token,
+    refreshToken,
+    expiresAt,
+    scope: payload.scope ?? null,
+  })
 
   return payload.access_token
 }

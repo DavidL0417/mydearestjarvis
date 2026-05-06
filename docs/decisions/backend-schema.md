@@ -10,7 +10,9 @@
 
 - Every public table must have RLS enabled.
 - User-owned public rows must be scoped to `auth.uid()`.
+- Browser clients should go through backend routes for app data. Direct table grants to `anon` and `authenticated` are revoked by migration unless a future feature explicitly reopens a table with RLS-backed policies.
 - OAuth tokens and provider secrets belong in `app_private`, not public tables.
+- Backend token reads and writes go through service-role-only RPC wrappers so `app_private` does not need to be exposed as a Supabase API schema.
 - Public integration rows may expose connection metadata only: provider, account email, status, selected calendar, and sync timestamps.
 
 ## Production V1 Tables
@@ -23,3 +25,4 @@
 - `schedule_events` is the canonical app event store.
 - Imported Google events are mirrored into `schedule_events`.
 - JARVIS-created task/focus blocks are persisted first, then synced outward when Google is connected.
+- Google OAuth provider tokens are captured from the callback exchange result immediately; sync responses expose an explicit authorization-required state instead of a generic failure.

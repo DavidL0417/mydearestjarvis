@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { loadAssistantRuntimeContext } from "@/lib/assistant/context"
+import { generateSecretaryDialogueReply } from "@/lib/assistant/dialogue"
 import { TASKS_CALENDAR_ID } from "@/lib/task-calendar-constants"
 import { assistantMessageResponseSchema } from "@/schemas/assistant"
 import type {
@@ -309,7 +310,10 @@ export async function runSecretaryTurn(input: RunSecretaryTurnInput): Promise<As
   })
 
   const toolCalls: AssistantToolCallResult[] = []
-  let reply = "I captured that, but I did not make a data change."
+  let reply: string
+  let ok = true
+  let error: string | undefined
+  let model: string | undefined
   let needsRefresh = false
   let clarification: string | null = null
 
@@ -332,6 +336,18 @@ export async function runSecretaryTurn(input: RunSecretaryTurnInput): Promise<As
     } else if (taskTitle) {
       reply = `Added "${taskTitle}".`
       needsRefresh = true
+    } else {
+      const dialogue = await generateSecretaryDialogueReply({
+        message: cleanMessage,
+        now: input.now,
+        timezone: input.timezone,
+        history: input.history,
+        runtime: runtimeBefore,
+      })
+      reply = dialogue.reply
+      ok = dialogue.ok
+      error = dialogue.error
+      model = dialogue.model
     }
   }
 
@@ -381,11 +397,13 @@ export async function runSecretaryTurn(input: RunSecretaryTurnInput): Promise<As
     : runtimeBefore
 
   return assistantMessageResponseSchema.parse({
-    ok: true,
+    ok,
     reply,
     toolCalls,
     needsRefresh,
     clarification,
     context: runtimeAfter.context,
+    error,
+    debug: model ? { model } : undefined,
   })
 }

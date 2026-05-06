@@ -15,7 +15,7 @@ interface StatusPanelProps {
 function StatusItem({ label, value }: StatusItemProps) {
   return (
     <div className="space-y-0.5">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <p className="text-[11px] font-semibold uppercase text-muted-foreground">
         {label}
       </p>
       <p className="text-sm font-bold text-foreground">{value}</p>

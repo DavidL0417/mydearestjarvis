@@ -53,3 +53,5 @@ pnpm build
 The public schema uses RLS on every public table. OAuth tokens live in `app_private.integration_tokens`, not public integration metadata.
 
 Apply migrations through Supabase CLI or the connected Supabase project tooling. Do not hand-edit production schema outside migrations.
+
+Auth is Google OAuth through Supabase SSR cookies. Set Supabase Auth Site URL to the production app URL and allow `/auth/callback` for production, localhost, and any Vercel preview URLs you intend to test.

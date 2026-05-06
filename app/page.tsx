@@ -123,8 +123,8 @@ function StatGlyph({
       <TooltipTrigger asChild>
         <span className="inline-flex items-center gap-2 rounded-sm px-1.5 py-1 text-foreground transition-colors hover:bg-accent/60">
           <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" strokeWidth={1.75} />
-          <span className="num text-[14px] font-medium tabular-nums leading-none">{value}</span>
-          <span className="hidden text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground lg:inline">
+          <span className="num text-[13px] font-medium tabular-nums leading-none">{value}</span>
+          <span className="hidden text-[10.5px] uppercase text-muted-foreground lg:inline">
             {label}
           </span>
         </span>
@@ -151,7 +151,7 @@ function ShellMessage({
         <div className="mb-6 flex h-10 w-10 items-center justify-center rounded-sm border border-rule">
           <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
         </div>
-        <h1 className="text-2xl font-semibold leading-[1.15] tracking-tight text-foreground">{title}</h1>
+        <h1 className="text-2xl font-semibold leading-[1.15] text-foreground">{title}</h1>
         <p className="mt-3 max-w-[52ch] text-[13px] leading-6 text-muted-foreground">{detail}</p>
         {action ? <div className="mt-6">{action}</div> : null}
       </div>
@@ -503,11 +503,11 @@ export default function DashboardPage() {
           <section className="flex min-w-0 flex-1 flex-col">
             <header className="flex h-16 shrink-0 items-center gap-5 border-b border-rule-strong px-6">
               <div className="flex min-w-0 items-center gap-3">
-                <span className="text-[19px] font-semibold leading-none tracking-tight text-foreground">
+                <span className="text-[17px] font-semibold leading-none text-foreground">
                   JARVIS
                 </span>
                 <span className="hidden h-4 w-px bg-rule-strong sm:block" />
-                <span className="hidden text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground sm:block">
+                <span className="hidden text-[11px] font-medium uppercase text-muted-foreground sm:block">
                   Secretary
                 </span>
               </div>
