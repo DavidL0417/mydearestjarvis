@@ -106,7 +106,7 @@
 }
 
 @theme inline {
-  --font-sans: 'Geist', 'Geist Fallback';
+  --font-sans: 'Inter', 'Inter Fallback';
   --font-mono: 'Geist Mono', 'Geist Mono Fallback';
   --font-serif: var(--font-sans);
 
@@ -165,7 +165,7 @@
     @apply min-h-screen bg-background text-foreground;
   }
   body {
-    font-feature-settings: 'ss01', 'cv11';
+    font-feature-settings: 'cv05', 'cv09';
   }
   ::selection {
     background: var(--copper-soft);

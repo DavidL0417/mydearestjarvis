@@ -102,7 +102,7 @@ export function TaskQueuePopover({ tasks, onToggleComplete }: TaskQueuePopoverPr
                     </button>
                     <div className="min-w-0 flex-1">
                       <p
-                        className={`truncate text-[14px] ${
+                        className={`truncate text-[13px] ${
                           task.status === "completed"
                             ? "text-muted-foreground line-through"
                             : "text-foreground"
@@ -110,7 +110,7 @@ export function TaskQueuePopover({ tasks, onToggleComplete }: TaskQueuePopoverPr
                       >
                         {task.title}
                       </p>
-                      <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11.5px] text-muted-foreground">
+                      <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-muted-foreground">
                         <span className="num font-medium uppercase tracking-[0.12em]">{task.priority}</span>
                         {deadlineLabel ? (
                           <span className="num inline-flex items-center gap-1">

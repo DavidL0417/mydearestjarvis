@@ -364,7 +364,7 @@ export function TaskManager({
         </button>
         <div className="min-w-0 flex-1">
           <p
-            className={`text-[14px] leading-[1.4] ${
+            className={`text-[13px] leading-[1.4] ${
               task.status === "completed"
                 ? "text-muted-foreground line-through"
                 : "text-foreground"
@@ -372,7 +372,7 @@ export function TaskManager({
           >
             {task.title}
           </p>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11.5px] text-muted-foreground">
+          <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-muted-foreground">
             {overdue ? (
               <span className="num inline-flex items-center gap-1 font-medium uppercase tracking-[0.12em] text-destructive">
                 <AlertCircle className="h-3 w-3" /> Overdue

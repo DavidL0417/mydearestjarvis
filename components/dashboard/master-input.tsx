@@ -96,7 +96,7 @@ function ToolCallReceipt({ toolCalls }: { toolCalls: AssistantMessageResponse["t
 
 function MarkdownMessage({ text }: { text: string }) {
   return (
-    <div className="text-[13.5px] leading-[1.55] text-foreground">
+    <div className="text-[13px] leading-[1.55] text-foreground">
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkBreaks]}
         components={{
@@ -389,7 +389,7 @@ export function MasterInput({ tasks = [] }: MasterInputProps) {
                 {entry.role === "assistant" ? (
                   <MarkdownMessage text={entry.text} />
                 ) : (
-                  <p className="whitespace-pre-wrap text-[13.5px] leading-[1.55] text-foreground">
+                  <p className="whitespace-pre-wrap text-[13px] leading-[1.55] text-foreground">
                     {entry.text}
                   </p>
                 )}
@@ -424,7 +424,7 @@ export function MasterInput({ tasks = [] }: MasterInputProps) {
             onChange={(event) => setMessage(event.target.value)}
             onKeyDown={handleKeyDown}
             aria-label="Secretary input"
-            className="max-h-[118px] min-h-[32px] resize-none rounded-none border-0 bg-transparent p-0 pt-1 text-[14px] leading-[1.55] text-foreground shadow-none outline-none placeholder:text-muted-foreground/65 focus-visible:ring-0 dark:bg-transparent"
+            className="max-h-[118px] min-h-[32px] resize-none rounded-none border-0 bg-transparent p-0 pt-1 text-[13px] leading-[1.55] text-foreground shadow-none outline-none placeholder:text-muted-foreground/65 focus-visible:ring-0 dark:bg-transparent"
           />
           <Tooltip>
             <TooltipTrigger asChild>
