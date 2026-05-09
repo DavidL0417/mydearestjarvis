@@ -27,25 +27,48 @@ function responseNeedsGoogleAuthorization(response: Response, payload: GoogleCal
   )
 }
 
-export async function startGoogleOAuthRedirect(nextPath?: string) {
+function getAuthRedirectTo(nextPath?: string) {
+  const next =
+    nextPath ??
+    (typeof window === "undefined" ? "/" : `${window.location.pathname}${window.location.search}`)
+
+  if (typeof window === "undefined") {
+    return undefined
+  }
+
+  return `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
+}
+
+export async function startGoogleSignInRedirect(nextPath = "/dashboard") {
   const supabase = tryCreateSupabaseBrowserClient()
 
   if (!supabase) {
     throw new Error("Supabase auth is not configured.")
   }
 
-  const next =
-    nextPath ??
-    (typeof window === "undefined" ? "/" : `${window.location.pathname}${window.location.search}`)
-  const redirectTo =
-    typeof window === "undefined"
-      ? undefined
-      : `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: getAuthRedirectTo(nextPath),
+    },
+  })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+}
+
+export async function startGoogleSourceAuthorizationRedirect(nextPath?: string) {
+  const supabase = tryCreateSupabaseBrowserClient()
+
+  if (!supabase) {
+    throw new Error("Supabase auth is not configured.")
+  }
 
   const { error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo,
+      redirectTo: getAuthRedirectTo(nextPath),
       scopes: GOOGLE_SOURCE_SCOPES,
       queryParams: {
         access_type: "offline",

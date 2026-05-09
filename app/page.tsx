@@ -5,6 +5,7 @@ import { DashboardPreview } from "@/components/landing/dashboard-preview"
 import { LandingFooter } from "@/components/landing/landing-footer"
 import { LandingHero } from "@/components/landing/landing-hero"
 import { LandingNav } from "@/components/landing/landing-nav"
+import { ParallaxGlow } from "@/components/landing/parallax-glow"
 import { SectionReveal } from "@/components/landing/section-reveal"
 import { TimeSpine } from "@/components/landing/time-spine"
 import { WaitlistForm } from "@/components/landing/waitlist-form"
@@ -75,6 +76,7 @@ export default function LandingPage() {
         } as React.CSSProperties
       }
     >
+      <ParallaxGlow />
       <span aria-hidden="true" className="landing-grain" />
       <CursorSpotlight />
 

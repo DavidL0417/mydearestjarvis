@@ -57,7 +57,7 @@ The public schema uses RLS on every public table. OAuth tokens live in `app_priv
 
 Apply migrations through Supabase CLI or the connected Supabase project tooling. Do not hand-edit production schema outside migrations.
 
-Auth is Google OAuth through Supabase SSR cookies. Set Supabase Auth Site URL to the production app URL and allow `/auth/callback` for production, localhost, and any Vercel preview URLs you intend to test.
+Auth is Google OAuth through Supabase SSR cookies. Set Supabase Auth Site URL to the production app URL and allow `/auth/callback` for production, localhost, and any Vercel preview URLs you intend to test. For Vercel previews, Supabase supports wildcard allow-list entries such as `https://*-<team-or-account-slug>.vercel.app/**`; the callback must return to the same browser origin that started the PKCE flow.
 Enable both Google Calendar API and Gmail API on the Google Cloud project behind `GOOGLE_CLIENT_ID`; OAuth can succeed even while Gmail API calls are blocked at the project level.
 
 Notion source intake uses a public Notion connection. Add `http://localhost:3000/api/integrations/notion/callback` as a redirect URI for local development, add the production equivalent for deploys, then copy the connection's OAuth client ID and secret into `.env.local`.

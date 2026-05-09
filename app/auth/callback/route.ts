@@ -69,11 +69,15 @@ export async function GET(request: Request) {
         console.error("Google auth callback bootstrap failed after session exchange.", bootstrapError)
       }
 
-      return NextResponse.redirect(new URL(next, getRedirectOrigin(request, requestUrl.origin)))
+      const response = NextResponse.redirect(new URL(next, getRedirectOrigin(request, requestUrl.origin)))
+      response.headers.set("Cache-Control", "private, no-store")
+      return response
     }
   }
 
-  return NextResponse.redirect(new URL("/dashboard?authError=callback", getRedirectOrigin(request, requestUrl.origin)))
+  const response = NextResponse.redirect(new URL("/dashboard?authError=callback", getRedirectOrigin(request, requestUrl.origin)))
+  response.headers.set("Cache-Control", "private, no-store")
+  return response
 }
 
 // ##### END BACKEND #####

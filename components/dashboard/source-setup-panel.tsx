@@ -31,7 +31,7 @@ import {
   InputGroupInput,
   InputGroupTextarea,
 } from "@/components/ui/input-group"
-import { startGoogleOAuthRedirect } from "@/lib/supabase/auth-actions"
+import { startGoogleSourceAuthorizationRedirect } from "@/lib/supabase/auth-actions"
 import type {
   SourceCandidate,
   SourceConnector,
@@ -304,7 +304,7 @@ export function SourceSetupPanel({
 
   async function handleGoogleAuthorize() {
     await runAction(async () => {
-      await startGoogleOAuthRedirect("/dashboard")
+      await startGoogleSourceAuthorizationRedirect("/dashboard")
     })
   }
 

@@ -7,7 +7,7 @@ import { Loader2, LogIn, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { startGoogleOAuthRedirect } from "@/lib/supabase/auth-actions"
+import { startGoogleSignInRedirect } from "@/lib/supabase/auth-actions"
 import { tryCreateSupabaseBrowserClient } from "@/lib/supabase/client"
 
 type AuthViewState =
@@ -101,7 +101,7 @@ export function AuthControls() {
     setIsMutating(true)
 
     try {
-      await startGoogleOAuthRedirect()
+      await startGoogleSignInRedirect()
     } catch (error) {
       console.error("Failed to start Google sign-in", error)
       setIsMutating(false)

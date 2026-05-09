@@ -205,12 +205,6 @@
   --font-display: var(--font-jarvis-display), var(--font-jarvis-sans), ui-sans-serif, sans-serif;
   background-color: var(--background);
   color: var(--foreground);
-  background-image:
-    radial-gradient(60rem 40rem at 18% -8%, var(--copper-glow), transparent 60%),
-    radial-gradient(48rem 36rem at 92% 18%, oklch(0.55 0.14 38 / 0.08), transparent 65%);
-  background-size: auto, auto;
-  background-attachment: fixed, fixed;
-  background-position: 0 0, 0 0;
 }
 
 .cursor-dot-field {
@@ -247,6 +241,10 @@
     background-size: auto, auto, 28px 28px;
     background-attachment: fixed, fixed, fixed;
     background-position: 0 0, 0 0, 0 0;
+  }
+
+  .landing-parallax-glow {
+    display: none;
   }
 
   .cursor-dot-field {
@@ -297,10 +295,10 @@
 /* Cascading child stagger inside any [data-visible] ancestor */
 .stagger-children > * {
   opacity: 0;
-  transform: translateY(72px);
+  transform: translateY(28px);
   transition:
-    opacity 760ms cubic-bezier(0.22, 1, 0.36, 1),
-    transform 940ms cubic-bezier(0.16, 1, 0.3, 1);
+    opacity 360ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 520ms cubic-bezier(0.34, 1.36, 0.64, 1);
   will-change: opacity, transform;
 }
 
@@ -310,17 +308,17 @@
 }
 
 [data-visible="true"] .stagger-children > *:nth-child(1) { transition-delay: 0ms; }
-[data-visible="true"] .stagger-children > *:nth-child(2) { transition-delay: 120ms; }
-[data-visible="true"] .stagger-children > *:nth-child(3) { transition-delay: 230ms; }
-[data-visible="true"] .stagger-children > *:nth-child(4) { transition-delay: 320ms; }
-[data-visible="true"] .stagger-children > *:nth-child(5) { transition-delay: 400ms; }
-[data-visible="true"] .stagger-children > *:nth-child(6) { transition-delay: 470ms; }
+[data-visible="true"] .stagger-children > *:nth-child(2) { transition-delay: 70ms; }
+[data-visible="true"] .stagger-children > *:nth-child(3) { transition-delay: 140ms; }
+[data-visible="true"] .stagger-children > *:nth-child(4) { transition-delay: 210ms; }
+[data-visible="true"] .stagger-children > *:nth-child(5) { transition-delay: 270ms; }
+[data-visible="true"] .stagger-children > *:nth-child(6) { transition-delay: 320ms; }
 
 .stagger-leftright > *:nth-child(odd) {
-  transform: translate(-72px, 24px);
+  transform: translate(-28px, 12px);
 }
 .stagger-leftright > *:nth-child(even) {
-  transform: translate(72px, 24px);
+  transform: translate(28px, 12px);
 }
 [data-visible="true"] .stagger-leftright > * {
   transform: translate(0, 0);

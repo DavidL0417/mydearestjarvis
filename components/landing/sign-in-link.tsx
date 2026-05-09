@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Loader2 } from "lucide-react"
 
-import { startGoogleOAuthRedirect } from "@/lib/supabase/auth-actions"
+import { startGoogleSignInRedirect } from "@/lib/supabase/auth-actions"
 
 export function SignInLink({ className = "" }: { className?: string }) {
   const [pending, setPending] = useState(false)
@@ -33,7 +33,7 @@ export function SignInLink({ className = "" }: { className?: string }) {
         if (pending) return
         setPending(true)
         try {
-          await startGoogleOAuthRedirect("/dashboard")
+          await startGoogleSignInRedirect("/dashboard")
         } catch (error) {
           console.error("Failed to start sign-in", error)
           setPending(false)

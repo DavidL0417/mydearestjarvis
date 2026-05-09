@@ -23,7 +23,7 @@ import { CalendarPlus, ChevronLeft, ChevronRight, KeyRound, Loader2, MapPin, Ref
 import {
   fetchGoogleEvents,
   isGoogleCalendarAuthorizationError,
-  startGoogleOAuthRedirect,
+  startGoogleSourceAuthorizationRedirect,
 } from "@/lib/supabase/auth-actions"
 import {
   buildTaskReminderDescription,
@@ -480,7 +480,7 @@ export function ScheduleView({
     setIsAuthorizingGoogle(true)
 
     try {
-      await startGoogleOAuthRedirect()
+      await startGoogleSourceAuthorizationRedirect()
     } catch (error) {
       console.error("Failed to start Google authorization", error)
       setSyncErrorMessage(

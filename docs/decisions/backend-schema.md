@@ -25,7 +25,8 @@
 - `schedule_events` is the canonical app event store.
 - Imported Google events are mirrored into `schedule_events`.
 - JARVIS-created task/focus blocks are persisted first, then synced outward when Google is connected.
-- Google OAuth provider tokens are captured from the callback exchange result immediately; sync responses expose an explicit authorization-required state instead of a generic failure.
+- Google app sign-in and Google source authorization are separate OAuth intents. Plain sign-in uses the provider for identity only; Calendar/Gmail authorization requests the offline source scopes and captures provider tokens from the callback exchange result immediately.
+- Sync responses expose an explicit authorization-required state instead of a generic failure.
 - Source connector readiness is derived on the server from public integration rows, private token presence, known OAuth scopes, and required environment variables. The UI must not treat a public `connected` row as runnable unless the private token/scope check also passes.
 
 ## Source Intake And Plans
