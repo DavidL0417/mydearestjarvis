@@ -34,6 +34,6 @@
 - Extracted source facts enter `source_candidates` first. The app may approve candidates into tasks or memory, but it should not silently mutate the scheduler from inferred source text.
 - Gmail scans are context refreshes first and task extraction second. Source snapshots should preserve a planning digest even when no candidate needs approval.
 - Gmail authorization and Gmail API availability are separate readiness checks. If the Cloud project has not enabled `gmail.googleapis.com`, record a failed Gmail source snapshot and do not treat it as a user reauthorization problem.
-- Notion source intake uses a public OAuth connection, stores tokens in `app_private.integration_tokens`, and imports only pages/databases selected in the Notion authorization page picker.
+- Notion source intake uses a public OAuth connection, stores tokens in `app_private.integration_tokens`, and requires a user-selected authoritative tasks database on the integration row before importing. Imports query that database directly instead of broad workspace search.
 - `daily_plans` records the current command-deck plan: horizon, summary, now item, next items, risk items, source coverage, tradeoffs, model, and command.
 - Planner-created task blocks may reference `daily_plans.id` through `tasks.plan_id` and `schedule_events.plan_id`.

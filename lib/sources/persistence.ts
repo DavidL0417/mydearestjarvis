@@ -60,6 +60,20 @@ function isTaskCandidate(kind: SourceCandidateKind) {
   return kind === "task" || kind === "deadline" || kind === "event"
 }
 
+function candidateKey(input: {
+  kind: SourceCandidateKind
+  title: string
+  dueAt: string | null
+  course: string | null
+}) {
+  return [
+    input.kind,
+    input.title.trim().toLowerCase(),
+    input.dueAt ?? "",
+    input.course?.trim().toLowerCase() ?? "",
+  ].join("|")
+}
+
 function candidateToTaskInsert(candidate: SourceCandidate, userId: string): TaskInsertRow {
   return {
     user_id: userId,
@@ -198,10 +212,56 @@ export async function insertSourceCandidates(input: {
     return []
   }
 
+  const titles = Array.from(new Set(input.candidates.map((candidate) => candidate.title.trim()).filter(Boolean)))
+  const existingKeys = new Set<string>()
+
+  if (titles.length > 0) {
+    const { data: existingRows, error: existingError } = await input.adminClient
+      .from("source_candidates")
+      .select(SOURCE_CANDIDATE_SELECT)
+      .eq("user_id", input.userId)
+      .in("title", titles)
+      .neq("status", "dismissed")
+      .returns<SourceCandidateRow[]>()
+
+    if (existingError) {
+      throw new Error(existingError.message)
+    }
+
+    for (const candidate of (existingRows || []).map(mapSourceCandidateRowToCandidate)) {
+      existingKeys.add(candidateKey({
+        kind: candidate.kind,
+        title: candidate.title,
+        dueAt: candidate.dueAt,
+        course: candidate.course,
+      }))
+    }
+  }
+
+  const candidatesToInsert = input.candidates.filter((candidate) => {
+    const key = candidateKey({
+      kind: candidate.kind,
+      title: candidate.title,
+      dueAt: candidate.dueAt,
+      course: candidate.course,
+    })
+
+    if (existingKeys.has(key)) {
+      return false
+    }
+
+    existingKeys.add(key)
+    return true
+  })
+
+  if (candidatesToInsert.length === 0) {
+    return []
+  }
+
   const { data, error } = await input.adminClient
     .from("source_candidates")
     .insert(
-      input.candidates.map((candidate) => ({
+      candidatesToInsert.map((candidate) => ({
         user_id: input.userId,
         source_snapshot_id: input.sourceSnapshotId,
         source_file_id: input.sourceFileId ?? null,

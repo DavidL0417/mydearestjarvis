@@ -29,6 +29,22 @@ function shouldShowCoverageItem(item: DailyPlan["sourceCoverage"][number]) {
   return item.status !== "missing"
 }
 
+function latestSourcePerKind(sources: SourceSnapshotSummary[]) {
+  const seen = new Set<string>()
+  const latest: SourceSnapshotSummary[] = []
+
+  for (const source of sources) {
+    if (seen.has(source.source)) {
+      continue
+    }
+
+    seen.add(source.source)
+    latest.push(source)
+  }
+
+  return latest
+}
+
 function riskTone(severity: "low" | "medium" | "high") {
   if (severity === "high") {
     return "destructive"
@@ -50,7 +66,7 @@ export function ContextRailPanel({
 }) {
   const sourceCoverage = (dailyPlan?.sourceCoverage ?? []).filter(shouldShowCoverageItem)
   const risks = dailyPlan?.riskItems ?? []
-  const recentSources = sources.slice(0, 4)
+  const recentSources = latestSourcePerKind(sources).slice(0, 4)
   const basisCount = sourceCoverage.length || recentSources.length
 
   return (

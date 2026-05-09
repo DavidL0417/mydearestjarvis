@@ -32,6 +32,8 @@ export interface StoredGoogleIntegration {
   provider_user_id: string | null
   status: UserIntegrationStatus
   selected_calendar_id: string | null
+  selected_source_id: string | null
+  selected_source_name: string | null
   last_synced_at: string | null
   access_token: string | null
   refresh_token: string | null
@@ -148,6 +150,8 @@ export async function getStoredGoogleIntegration(userId: string): Promise<Stored
     provider_user_id: integrationResult.data.provider_user_id,
     status: integrationResult.data.status,
     selected_calendar_id: integrationResult.data.selected_calendar_id,
+    selected_source_id: integrationResult.data.selected_source_id ?? null,
+    selected_source_name: integrationResult.data.selected_source_name ?? null,
     last_synced_at: integrationResult.data.last_synced_at,
     access_token: tokenRow?.access_token ?? null,
     refresh_token: tokenRow?.refresh_token ?? null,

@@ -14,6 +14,10 @@ const dailyCommandDeckMigration = readFileSync(
   "supabase/migrations/20260508011003_daily_command_deck_context.sql",
   "utf8",
 )
+const notionAuthoritativeSourceMigration = readFileSync(
+  "supabase/migrations/20260508231116_notion_authoritative_source.sql",
+  "utf8",
+)
 
 describe("production Supabase migration", () => {
   it("keeps OAuth tokens outside public tables", () => {
@@ -75,5 +79,12 @@ describe("production Supabase migration", () => {
     expect(dailyCommandDeckMigration).toContain("check (provider in ('google', 'notion'))")
     expect(dailyCommandDeckMigration).toContain("revoke all on function public.get_integration_token(uuid, text) from public, anon, authenticated;")
     expect(dailyCommandDeckMigration).toContain("grant execute on function public.upsert_integration_token(uuid, text, text, text, timestamptz, text) to service_role;")
+  })
+
+  it("stores the authoritative Notion source without exposing tokens", () => {
+    expect(notionAuthoritativeSourceMigration).toContain("add column if not exists selected_source_id text")
+    expect(notionAuthoritativeSourceMigration).toContain("add column if not exists selected_source_name text")
+    expect(notionAuthoritativeSourceMigration).not.toContain("access_token")
+    expect(notionAuthoritativeSourceMigration).not.toContain("refresh_token")
   })
 })

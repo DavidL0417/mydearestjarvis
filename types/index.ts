@@ -132,6 +132,8 @@ export interface UserIntegrationRow {
   provider_user_id: string | null
   status: UserIntegrationStatus
   selected_calendar_id: string | null
+  selected_source_id?: string | null
+  selected_source_name?: string | null
   last_synced_at: string | null
   created_at: string
   updated_at: string
@@ -143,6 +145,8 @@ export interface SourceConnector {
   detail: string
   account: string | null
   canRun: boolean
+  selectedSourceId: string | null
+  selectedSourceName: string | null
 }
 
 export interface IntegrationTokenRow {
@@ -364,6 +368,8 @@ export interface UserIntegration {
   providerUserId: string | null
   status: UserIntegrationStatus
   selectedCalendarId: string | null
+  selectedSourceId: string | null
+  selectedSourceName: string | null
   lastSyncedAt: string | null
   createdAt: string
   updatedAt: string

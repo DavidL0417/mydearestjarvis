@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   AlertTriangle,
   BookOpen,
@@ -11,6 +11,7 @@ import {
   FileUp,
   Loader2,
   Mail,
+  Save,
   Upload,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
@@ -27,6 +28,7 @@ import {
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
+  InputGroupInput,
   InputGroupTextarea,
 } from "@/components/ui/input-group"
 import { startGoogleOAuthRedirect } from "@/lib/supabase/auth-actions"
@@ -44,6 +46,7 @@ type ActionPayload = {
   error?: string
   details?: string
   needsAuthorization?: boolean
+  needsDatabaseSelection?: boolean
 }
 
 async function readJson<T>(response: Response, fallback: string): Promise<T> {
@@ -83,11 +86,13 @@ function getConnector(connectors: SourceConnector[], id: SourceConnectorId): Sou
     return connector
   }
 
-  return {
+    return {
     id,
     status: "auth_needed",
     account: null,
     canRun: false,
+    selectedSourceId: null,
+    selectedSourceName: null,
     detail:
       id === "notion"
         ? "Authorize a Notion workspace before importing scheduling context."
@@ -170,15 +175,20 @@ export function SourceSetupPanel({
   sourceCandidates: SourceCandidate[]
   onSourcesChanged: () => Promise<void>
 }) {
+  const notionConnector = getConnector(sourceConnectors, "notion")
+  const gmailConnector = getConnector(sourceConnectors, "gmail")
+  const gmailConfigMissing = gmailConnector.status === "missing_config"
   const [pasteText, setPasteText] = useState("")
+  const [notionDatabaseInput, setNotionDatabaseInput] = useState(notionConnector.selectedSourceId ?? "")
   const [status, setStatus] = useState<ActionStatus>("idle")
   const [errorMessage, setErrorMessage] = useState("")
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const pendingCount = sourceCandidates.filter((candidate) => candidate.status === "pending").length
   const failedCount = sources.filter((source) => source.freshness === "failed").length
-  const notionConnector = getConnector(sourceConnectors, "notion")
-  const gmailConnector = getConnector(sourceConnectors, "gmail")
-  const gmailConfigMissing = gmailConnector.status === "missing_config"
+
+  useEffect(() => {
+    setNotionDatabaseInput(notionConnector.selectedSourceId ?? "")
+  }, [notionConnector.selectedSourceId])
 
   async function runAction(action: () => Promise<void>) {
     setStatus("busy")
@@ -272,6 +282,26 @@ export function SourceSetupPanel({
     })
   }
 
+  async function handleSaveNotionDatabase() {
+    const database = notionDatabaseInput.trim()
+
+    if (!database) {
+      setErrorMessage("Paste the authoritative Notion tasks database URL or ID.")
+      setStatus("error")
+      return
+    }
+
+    await runAction(async () => {
+      const response = await fetch("/api/integrations/notion/database", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ database }),
+      })
+
+      await readJson(response, "Failed to save Notion tasks database.")
+    })
+  }
+
   async function handleGoogleAuthorize() {
     await runAction(async () => {
       await startGoogleOAuthRedirect("/dashboard")
@@ -344,6 +374,32 @@ export function SourceSetupPanel({
           title="Notion"
           connector={notionConnector}
         />
+        <Field className="gap-2">
+          <FieldLabel className="text-[12px]">Tasks Database</FieldLabel>
+          <InputGroup className="rounded-sm border-rule bg-secondary/20">
+            <InputGroupInput
+              value={notionDatabaseInput}
+              onChange={(event) => setNotionDatabaseInput(event.target.value)}
+              placeholder="Paste Notion database URL or ID"
+              disabled={status === "busy" || notionConnector.status === "missing_config"}
+              className="text-[12px]"
+            />
+            <InputGroupAddon align="inline-end">
+              <InputGroupButton
+                onClick={handleSaveNotionDatabase}
+                disabled={status === "busy" || notionDatabaseInput.trim().length === 0 || notionConnector.status === "missing_config"}
+              >
+                <Save aria-hidden="true" />
+                Save
+              </InputGroupButton>
+            </InputGroupAddon>
+          </InputGroup>
+          <FieldDescription className="text-[11px]">
+            {notionConnector.selectedSourceName
+              ? `Authoritative: ${notionConnector.selectedSourceName}`
+              : "Required before Notion import."}
+          </FieldDescription>
+        </Field>
         <ConnectorStatus
           icon={Mail}
           title="Gmail"

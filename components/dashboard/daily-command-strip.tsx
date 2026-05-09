@@ -46,6 +46,7 @@ export function DailyCommandStrip({
   plannerStatus,
   onBuild,
   onReplan,
+  placement = "top",
 }: {
   dailyPlan: DailyPlan | null
   isPlanning: boolean
@@ -53,15 +54,17 @@ export function DailyCommandStrip({
   plannerStatus: "Idle" | "Scheduling" | "Ready" | "Error"
   onBuild: () => void
   onReplan: (command: string) => Promise<void>
+  placement?: "top" | "side"
 }) {
   const nowItem = dailyPlan?.nowItem
   const nextItem = dailyPlan?.nextItems[0]
   const highRisks = severityCount(dailyPlan, "high")
   const mediumRisks = severityCount(dailyPlan, "medium")
+  const isSide = placement === "side"
 
   return (
-    <section className="shrink-0 border-b border-rule-strong pb-4">
-      <div className="flex min-w-0 flex-col gap-3">
+    <section className={`shrink-0 border-rule-strong ${isSide ? "border-b pb-4 xl:border-b-0 xl:border-r xl:pb-0 xl:pr-4" : "border-b pb-4"}`}>
+      <div className={`flex min-w-0 flex-col gap-3 ${isSide ? "xl:sticky xl:top-0" : ""}`}>
         <div className="flex flex-wrap items-center gap-2">
           <Button
             size="sm"
@@ -94,10 +97,10 @@ export function DailyCommandStrip({
         </div>
 
         <div className="min-w-0">
-          <h1 className="truncate text-[22px] font-semibold leading-tight text-foreground">
+          <h1 className={`${isSide ? "line-clamp-4 xl:text-[20px]" : "truncate text-[22px]"} font-semibold leading-tight text-foreground`}>
             {nowItem?.title ?? "Build today from live context"}
           </h1>
-          <p className="mt-1 line-clamp-2 max-w-[76ch] text-[13px] leading-5 text-muted-foreground">
+          <p className={`mt-1 text-[13px] leading-5 text-muted-foreground ${isSide ? "line-clamp-5" : "line-clamp-2 max-w-[76ch]"}`}>
             {nowItem?.why ?? "No daily plan has been generated from sources yet."}
           </p>
         </div>
@@ -111,7 +114,7 @@ export function DailyCommandStrip({
           </span>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className={`flex flex-wrap items-center gap-2 ${isSide ? "xl:flex-col xl:items-stretch" : ""}`}>
           {QUICK_REPLANS.map((action) => {
             const Icon = action.icon
             return (
@@ -121,7 +124,7 @@ export function DailyCommandStrip({
                 variant="secondary"
                 onClick={() => void onReplan(action.command)}
                 disabled={isPlanning}
-                className="h-7 gap-1.5 rounded-sm px-2 text-[11px] font-medium"
+                className={`h-7 gap-1.5 rounded-sm px-2 text-[11px] font-medium ${isSide ? "xl:justify-start" : ""}`}
               >
                 <Icon data-icon="inline-start" aria-hidden="true" />
                 {action.label}

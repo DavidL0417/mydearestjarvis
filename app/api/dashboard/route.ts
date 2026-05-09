@@ -47,6 +47,8 @@ import type {
   SourceConnector,
 } from "@/types"
 
+type AdminClient = Awaited<ReturnType<typeof requireAuthenticatedUser>>["adminClient"]
+
 function pickCurrentTask(tasks: Task[]): DashboardResponse["currentTask"] {
   const scheduledTask = tasks.find((task) => task.status === "scheduled")
 
@@ -81,6 +83,77 @@ function getLatestSource(sources: SourceSnapshotSummary[], source: SourceSnapsho
 
 function getIntegrationAccount(integration: UserIntegration | null) {
   return integration?.providerAccountEmail || integration?.providerUserId || null
+}
+
+function isMissingSelectedSourceColumn(error: { message?: string; code?: string } | null) {
+  return Boolean(
+    error &&
+      (error.code === "42703" ||
+        /selected_source_id|selected_source_name|does not exist/i.test(error.message ?? "")),
+  )
+}
+
+async function getNotionSelectedSource(adminClient: AdminClient, userId: string) {
+  const { data, error } = await adminClient
+    .from("integrations")
+    .select("selected_source_id, selected_source_name")
+    .eq("user_id", userId)
+    .eq("provider", "notion")
+    .maybeSingle<{ selected_source_id: string | null; selected_source_name: string | null }>()
+
+  if (isMissingSelectedSourceColumn(error)) {
+    return {
+      selectedSourceId: null,
+      selectedSourceName: null,
+    }
+  }
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return {
+    selectedSourceId: data?.selected_source_id ?? null,
+    selectedSourceName: data?.selected_source_name ?? null,
+  }
+}
+
+function withNotionSelectedSource(
+  integrations: UserIntegration[],
+  selectedSource: { selectedSourceId: string | null; selectedSourceName: string | null },
+) {
+  return integrations.map((integration) => {
+    if (integration.provider !== "notion") {
+      return integration
+    }
+
+    return {
+      ...integration,
+      selectedSourceId: selectedSource.selectedSourceId,
+      selectedSourceName: selectedSource.selectedSourceName,
+    }
+  })
+}
+
+function getDistinctActiveSourceCount(input: {
+  sources: SourceSnapshotSummary[]
+  sourceConnectors: SourceConnector[]
+}) {
+  const sourceLabels = new Set<string>()
+
+  for (const connector of input.sourceConnectors) {
+    if (connector.status === "connected" || connector.status === "ready") {
+      sourceLabels.add(connector.id)
+    }
+  }
+
+  for (const source of input.sources) {
+    if (source.freshness !== "failed") {
+      sourceLabels.add(source.source)
+    }
+  }
+
+  return sourceLabels.size
 }
 
 function getMissingEnv(names: string[]) {
@@ -122,7 +195,11 @@ function deriveSourceConnectors(input: {
       status: "connected",
       account: notionAccount,
       canRun: true,
-      detail: `${notionAccount ? `${notionAccount}. ` : ""}Import scans Notion pages shared during authorization.`,
+      detail: notionIntegration.selectedSourceName
+        ? `${notionAccount ? `${notionAccount}. ` : ""}Import uses ${notionIntegration.selectedSourceName}.`
+        : `${notionAccount ? `${notionAccount}. ` : ""}Choose the authoritative tasks database before importing.`,
+      selectedSourceId: notionIntegration.selectedSourceId,
+      selectedSourceName: notionIntegration.selectedSourceName,
     })
   } else if (missingNotionEnv.length > 0) {
     sourceConnectors.push({
@@ -131,6 +208,8 @@ function deriveSourceConnectors(input: {
       account: notionAccount,
       canRun: false,
       detail: "This deployment has not configured the Notion connector yet. The app owner must add one Notion public OAuth connection before users can connect a workspace.",
+      selectedSourceId: notionIntegration?.selectedSourceId ?? null,
+      selectedSourceName: notionIntegration?.selectedSourceName ?? null,
     })
   } else if (notionIntegration?.status === "error" || notionSource?.freshness === "failed") {
     sourceConnectors.push({
@@ -139,6 +218,8 @@ function deriveSourceConnectors(input: {
       account: notionAccount,
       canRun: false,
       detail: notionSource?.summary || "Notion authorization failed. Reconnect the workspace.",
+      selectedSourceId: notionIntegration?.selectedSourceId ?? null,
+      selectedSourceName: notionIntegration?.selectedSourceName ?? null,
     })
   } else {
     sourceConnectors.push({
@@ -147,6 +228,8 @@ function deriveSourceConnectors(input: {
       account: notionAccount,
       canRun: false,
       detail: "Authorize a Notion workspace before importing scheduling context.",
+      selectedSourceId: notionIntegration?.selectedSourceId ?? null,
+      selectedSourceName: notionIntegration?.selectedSourceName ?? null,
     })
   }
 
@@ -157,6 +240,8 @@ function deriveSourceConnectors(input: {
       account: googleAccount,
       canRun: false,
       detail: `Google OAuth is not configured for this app. Add ${missingGoogleEnv.join(" and ")} on the server before users can authorize Gmail.`,
+      selectedSourceId: null,
+      selectedSourceName: null,
     })
   } else if (!googleIntegration || googleIntegration.status === "disconnected") {
     sourceConnectors.push({
@@ -165,6 +250,8 @@ function deriveSourceConnectors(input: {
       account: googleAccount,
       canRun: false,
       detail: "Authorize Google with Gmail read-only access before scanning mail context.",
+      selectedSourceId: null,
+      selectedSourceName: null,
     })
   } else if (googleIntegration.status === "error") {
     sourceConnectors.push({
@@ -173,6 +260,8 @@ function deriveSourceConnectors(input: {
       account: googleAccount,
       canRun: false,
       detail: gmailSource?.summary || "Google authorization failed. Reconnect Google before scanning Gmail.",
+      selectedSourceId: null,
+      selectedSourceName: null,
     })
   } else if (googleIntegration.status === "needs_reauth" || !hasRunnableGoogleToken(input.googleIntegration)) {
     sourceConnectors.push({
@@ -181,6 +270,8 @@ function deriveSourceConnectors(input: {
       account: googleAccount,
       canRun: false,
       detail: `${googleAccount ? `${googleAccount}. ` : ""}Reconnect Google; the connected row exists, but the private OAuth token is missing or expired.`,
+      selectedSourceId: null,
+      selectedSourceName: null,
     })
   } else if (!hasOAuthScope(input.googleIntegration?.scope, GMAIL_READONLY_SCOPE)) {
     sourceConnectors.push({
@@ -189,6 +280,8 @@ function deriveSourceConnectors(input: {
       account: googleAccount,
       canRun: false,
       detail: `${googleAccount ? `${googleAccount}. ` : ""}Reconnect Google once so JARVIS can confirm Gmail read-only scope.`,
+      selectedSourceId: null,
+      selectedSourceName: null,
     })
   } else if (gmailSource?.freshness === "failed") {
     sourceConnectors.push({
@@ -197,6 +290,8 @@ function deriveSourceConnectors(input: {
       account: googleAccount,
       canRun: true,
       detail: gmailSource.summary,
+      selectedSourceId: null,
+      selectedSourceName: null,
     })
   } else {
     sourceConnectors.push({
@@ -205,6 +300,8 @@ function deriveSourceConnectors(input: {
       account: googleAccount,
       canRun: true,
       detail: `${googleAccount ? `${googleAccount}. ` : ""}Ready to scan recent mail for planning context, small actions, logistics, and deadlines.`,
+      selectedSourceId: null,
+      selectedSourceName: null,
     })
   }
 
@@ -316,8 +413,11 @@ export async function GET() {
     const sourceCandidates = (sourceCandidateResult.data || []).map((row) =>
       mapSourceCandidateRowToCandidate(row as SourceCandidateRow),
     )
-    const integrations = (integrationResult.data || []).map((row) =>
-      mapUserIntegrationRowToUserIntegration(row as UserIntegrationRow),
+    const integrations = withNotionSelectedSource(
+      (integrationResult.data || []).map((row) =>
+        mapUserIntegrationRowToUserIntegration(row as UserIntegrationRow),
+      ),
+      await getNotionSelectedSource(adminClient, user.id),
     )
     const sourceConnectors = deriveSourceConnectors({
       integrations,
@@ -359,7 +459,7 @@ export async function GET() {
         unscheduled: unscheduledCount,
         checkInMode: getCheckInModeFromCount((checkinsResult.data || []).length),
         memories: memories.length,
-        sources: sources.length,
+        sources: getDistinctActiveSourceCount({ sources, sourceConnectors }),
       },
       currentTask: pickCurrentTask(tasks),
       tasks,

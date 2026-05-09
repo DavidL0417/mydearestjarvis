@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server"
 
-import { extractCandidatesFromText } from "@/lib/sources/extraction"
+import {
+  fetchNotionJson,
+  getNotionTitle,
+  type NotionDatabaseQueryResponse,
+  type NotionPageResult,
+  type NotionPropertyValue,
+} from "@/lib/notion"
 import { insertSourceCandidates, insertSourceSnapshot } from "@/lib/sources/persistence"
 import {
   isAuthenticationRequiredError,
@@ -9,162 +15,276 @@ import {
 import { getStoredIntegrationToken } from "@/lib/supabase/integration-tokens"
 import { sourceIntakeResponseSchema } from "@/schemas/sources"
 import type { SourceIntakeResponse } from "@/schemas/sources"
+import type { ExtractedSourceCandidate } from "@/lib/sources/extraction"
+import type { Priority } from "@/types"
 
-interface NotionSearchResult {
-  id?: string
-  object?: string
-  url?: string
-  archived?: boolean
-  properties?: Record<string, unknown>
-  title?: Array<{ plain_text?: string }>
+const MAX_NOTION_DATABASE_PAGES = 200
+
+function isMissingSelectedSourceColumn(error: { message?: string; code?: string } | null) {
+  return Boolean(
+    error &&
+      (error.code === "42703" ||
+        /selected_source_id|selected_source_name|does not exist/i.test(error.message ?? "")),
+  )
 }
 
-interface NotionSearchResponse {
-  results?: NotionSearchResult[]
-  error?: string
-  message?: string
+function normalizeText(value: string | null | undefined) {
+  const trimmed = value?.replace(/\s+/g, " ").trim()
+  return trimmed ? trimmed : null
 }
 
-interface NotionBlock {
-  id?: string
-  type?: string
-  has_children?: boolean
-  [key: string]: unknown
-}
-
-interface NotionBlockChildrenResponse {
-  results?: NotionBlock[]
-  has_more?: boolean
-  next_cursor?: string | null
-  error?: string
-  message?: string
-}
-
-function extractPlainText(value: unknown): string[] {
-  if (!value || typeof value !== "object") {
-    return []
-  }
-
-  if (Array.isArray(value)) {
-    return value.flatMap(extractPlainText)
-  }
-
-  const record = value as Record<string, unknown>
-  const plainText = typeof record.plain_text === "string" ? [record.plain_text] : []
-
-  return [
-    ...plainText,
-    ...Object.values(record).flatMap((item) => {
-      if (!item || typeof item !== "object") {
-        return []
-      }
-
-      return extractPlainText(item)
-    }),
-  ]
-}
-
-async function fetchNotionJson<T>(
-  accessToken: string,
-  url: string,
-  init?: RequestInit,
-): Promise<T> {
-  const response = await fetch(url, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      "Notion-Version": "2022-06-28",
-    },
-    cache: "no-store",
-  })
-  const payload = (await response.json().catch(() => null)) as (T & { error?: string; message?: string }) | null
-
-  if (!response.ok || !payload) {
-    const message = payload?.message || payload?.error || `Notion API failed with status ${response.status}.`
-
-    if (response.status === 401 || response.status === 403) {
-      throw new Error(`NOTION_REAUTH_REQUIRED: ${message} Reconnect Notion so JARVIS can read shared pages.`)
-    }
-
-    throw new Error(message)
-  }
-
-  return payload
-}
-
-function renderNotionBlock(block: NotionBlock) {
-  const text = extractPlainText(block).join(" ").replace(/\s+/g, " ").trim()
-
-  if (!text) {
+function propertyText(property: NotionPropertyValue | undefined): string | null {
+  if (!property) {
     return null
   }
 
-  return `${block.type ?? "block"}: ${text}`
+  switch (property.type) {
+    case "title":
+      return normalizeText(getNotionTitle(property.title))
+    case "rich_text":
+      return normalizeText(getNotionTitle(property.rich_text))
+    case "date":
+      return normalizeText(property.date?.start ?? null)
+    case "status":
+      return normalizeText(property.status?.name ?? null)
+    case "select":
+      return normalizeText(property.select?.name ?? null)
+    case "multi_select":
+      return normalizeText((property.multi_select || []).map((item) => item.name).filter(Boolean).join(", "))
+    case "checkbox":
+      return property.checkbox ? "Yes" : "No"
+    case "number":
+      return typeof property.number === "number" ? String(property.number) : null
+    case "url":
+      return normalizeText(property.url ?? null)
+    case "email":
+      return normalizeText(property.email ?? null)
+    case "phone_number":
+      return normalizeText(property.phone_number ?? null)
+    case "created_time":
+      return normalizeText(property.created_time)
+    case "last_edited_time":
+      return normalizeText(property.last_edited_time)
+    case "formula":
+      if (!property.formula) {
+        return null
+      }
+
+      if (property.formula.type === "string") {
+        return normalizeText(property.formula.string)
+      }
+
+      if (property.formula.type === "number") {
+        return typeof property.formula.number === "number" ? String(property.formula.number) : null
+      }
+
+      if (property.formula.type === "boolean") {
+        return typeof property.formula.boolean === "boolean" ? (property.formula.boolean ? "Yes" : "No") : null
+      }
+
+      if (property.formula.type === "date") {
+        return normalizeText(property.formula.date?.start ?? null)
+      }
+
+      return null
+    default:
+      return null
+  }
 }
 
-async function fetchNotionBlockText(accessToken: string, blockId: string, depth = 0): Promise<string[]> {
-  const lines: string[] = []
+function getPageTitle(page: NotionPageResult) {
+  const properties = page.properties || {}
+  const titleProperty = Object.values(properties).find((property) => property.type === "title")
+
+  return propertyText(titleProperty) || getNotionTitle(page.title) || null
+}
+
+function findProperty(
+  properties: Record<string, NotionPropertyValue>,
+  predicate: (name: string, property: NotionPropertyValue) => boolean,
+) {
+  return Object.entries(properties).find(([name, property]) => predicate(name, property))?.[1] ?? null
+}
+
+function parseDueAt(page: NotionPageResult) {
+  const properties = page.properties || {}
+  const namedDateProperty = findProperty(
+    properties,
+    (name, property) =>
+      property.type === "date" &&
+      /(due|deadline|date|when)/i.test(name) &&
+      !/(created|edited|completed|done)/i.test(name),
+  )
+  const fallbackDateProperty =
+    namedDateProperty ||
+    Object.values(properties).find((property) => property.type === "date") ||
+    null
+  const value = fallbackDateProperty?.date?.start ?? null
+
+  if (!value) {
+    return null
+  }
+
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
+}
+
+function parseCourse(page: NotionPageResult) {
+  const property = findProperty(
+    page.properties || {},
+    (name) => /(course|class|subject|project)/i.test(name),
+  )
+
+  return propertyText(property ?? undefined)
+}
+
+function parseDurationMinutes(page: NotionPageResult) {
+  const property = findProperty(
+    page.properties || {},
+    (name, value) => value.type === "number" && /(duration|estimate|minutes|mins|time)/i.test(name),
+  )
+
+  if (!property || typeof property.number !== "number") {
+    return null
+  }
+
+  return Math.max(Math.round(property.number), 1)
+}
+
+function parsePriority(page: NotionPageResult): Priority {
+  const property = findProperty(
+    page.properties || {},
+    (name) => /(priority|importance|urgency)/i.test(name),
+  )
+  const value = propertyText(property ?? undefined)?.toLowerCase() ?? ""
+
+  if (/(high|urgent|critical|p0|p1)/i.test(value)) {
+    return "high"
+  }
+
+  if (/(low|someday|p3|p4)/i.test(value)) {
+    return "low"
+  }
+
+  return "medium"
+}
+
+function isCompletedPage(page: NotionPageResult) {
+  for (const [name, property] of Object.entries(page.properties || {})) {
+    const propertyName = name.toLowerCase()
+    const value = propertyText(property)?.toLowerCase() ?? ""
+
+    if (property.type === "checkbox" && /(done|complete|completed|finished)/i.test(propertyName) && property.checkbox) {
+      return true
+    }
+
+    if (/(status|done|complete|completed|state)/i.test(propertyName)) {
+      if (/(done|complete|completed|finished|submitted|turned in|archived|canceled|cancelled)/i.test(value)) {
+        return true
+      }
+    }
+  }
+
+  return Boolean(page.archived)
+}
+
+function renderPageProperties(page: NotionPageResult) {
+  return Object.entries(page.properties || {})
+    .map(([name, property]) => {
+      const value = propertyText(property)
+      return value ? `${name}: ${value}` : null
+    })
+    .filter((line): line is string => Boolean(line))
+    .join("; ")
+}
+
+async function queryNotionDatabase(accessToken: string, databaseId: string) {
+  const pages: NotionPageResult[] = []
   let cursor: string | null = null
-  let fetchedPages = 0
 
   do {
-    const url = new URL(`https://api.notion.com/v1/blocks/${encodeURIComponent(blockId)}/children`)
-    url.searchParams.set("page_size", "30")
+    const payload: NotionDatabaseQueryResponse = await fetchNotionJson<NotionDatabaseQueryResponse>(
+      accessToken,
+      `https://api.notion.com/v1/databases/${encodeURIComponent(databaseId)}/query`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          page_size: 50,
+          start_cursor: cursor ?? undefined,
+          sorts: [
+            {
+              timestamp: "last_edited_time",
+              direction: "descending",
+            },
+          ],
+        }),
+      },
+    )
 
-    if (cursor) {
-      url.searchParams.set("start_cursor", cursor)
-    }
+    pages.push(...(payload.results || []))
+    cursor = payload.has_more && pages.length < MAX_NOTION_DATABASE_PAGES ? payload.next_cursor ?? null : null
+  } while (cursor)
 
-    const payload = await fetchNotionJson<NotionBlockChildrenResponse>(accessToken, url.toString())
-    const blocks = payload.results || []
-
-    for (const block of blocks) {
-      const rendered = renderNotionBlock(block)
-
-      if (rendered) {
-        lines.push(rendered)
-      }
-
-      if (block.id && block.has_children && depth < 1) {
-        const childLines = await fetchNotionBlockText(accessToken, block.id, depth + 1)
-        lines.push(...childLines)
-      }
-    }
-
-    cursor = payload.has_more ? payload.next_cursor ?? null : null
-    fetchedPages += 1
-  } while (cursor && fetchedPages < 2)
-
-  return lines
+  return pages
 }
 
-async function renderNotionResult(accessToken: string, result: NotionSearchResult, index: number) {
-  const propertyText = extractPlainText(result.properties).join(" | ").slice(0, 4000)
-  const title = extractPlainText(result.title).join(" ").trim()
-  const contentText =
-    result.id && result.object === "page"
-      ? (await fetchNotionBlockText(accessToken, result.id)).join("\n").slice(0, 8000)
-      : ""
+function pagesToCandidates(pages: NotionPageResult[], databaseName: string | null): ExtractedSourceCandidate[] {
+  const candidates: ExtractedSourceCandidate[] = []
 
-  return [
-    `Result ${index + 1}`,
-    `Object: ${result.object ?? "unknown"}`,
-    `ID: ${result.id ?? "unknown"}`,
-    title ? `Title: ${title}` : null,
-    result.url ? `URL: ${result.url}` : null,
-    propertyText ? `Properties: ${propertyText}` : null,
-    contentText ? `Content:\n${contentText}` : null,
-  ]
-    .filter((part): part is string => Boolean(part))
-    .join("\n")
+  for (const page of pages) {
+    if (isCompletedPage(page)) {
+      continue
+    }
+
+    const title = getPageTitle(page)
+
+    if (!title) {
+      continue
+    }
+
+    const dueAt = parseDueAt(page)
+    const properties = renderPageProperties(page)
+    const sourceLabel = databaseName || "Notion tasks database"
+
+    candidates.push({
+      kind: dueAt ? "deadline" : "task",
+      title,
+      description: properties || null,
+      course: parseCourse(page),
+      dueAt,
+      durationMinutes: parseDurationMinutes(page),
+      priority: parsePriority(page),
+      confidence: dueAt ? 0.95 : 0.75,
+      evidence: `${sourceLabel}${page.url ? ` (${page.url})` : ""}`,
+    })
+  }
+
+  return candidates
 }
 
-export async function POST(request: Request) {
+function buildSummary(candidates: ExtractedSourceCandidate[], pages: NotionPageResult[], databaseName: string | null) {
+  const dueCount = candidates.filter((candidate) => candidate.dueAt).length
+  const noDateCount = candidates.length - dueCount
+  const completedCount = pages.filter(isCompletedPage).length
+  const label = databaseName || "Notion tasks database"
+
+  if (pages.length === 0) {
+    return `${label} import completed; no task rows were returned.`
+  }
+
+  if (candidates.length === 0) {
+    return `${label} import completed; ${completedCount} rows appear complete and no open tasks were found.`
+  }
+
+  return `${label} import found ${candidates.length} open task${candidates.length === 1 ? "" : "s"}: ${dueCount} with due dates, ${noDateCount} needing dates.`
+}
+
+export async function POST() {
+  let userId: string | null = null
+
   try {
     const { adminClient, user } = await requireAuthenticatedUser()
-    const body = await request.json().catch(() => ({})) as { query?: string }
-    const query = body.query?.trim() || "deadline due assignment syllabus exam project task"
+    userId = user.id
     const token = await getStoredIntegrationToken(user.id, "notion")
 
     if (!token?.access_token) {
@@ -177,71 +297,62 @@ export async function POST(request: Request) {
       )
     }
 
-    const accessToken = token.access_token
-    const payload = await fetchNotionJson<NotionSearchResponse>(accessToken, "https://api.notion.com/v1/search", {
-      method: "POST",
-      body: JSON.stringify({
-        query,
-        page_size: 12,
-        sort: {
-          direction: "descending",
-          timestamp: "last_edited_time",
-        },
-      }),
-    })
-    const results = payload.results || []
+    const { data: integration, error: integrationError } = await adminClient
+      .from("integrations")
+      .select("selected_source_id, selected_source_name")
+      .eq("user_id", user.id)
+      .eq("provider", "notion")
+      .maybeSingle<{ selected_source_id: string | null; selected_source_name: string | null }>()
 
-    if (results.length === 0) {
-      const sourceSnapshot = await insertSourceSnapshot({
-        adminClient,
-        userId: user.id,
-        source: "notion",
-        sourceRef: query,
-        freshness: "fresh",
-        summary: "Notion import completed; no pages matched the scheduling query.",
-        payload: {
-          query,
-          resultCount: 0,
-        },
-      })
-      const responsePayload: SourceIntakeResponse = {
-        success: true,
-        sourceSnapshot,
-        sourceFile: null,
-        candidates: [],
+    if (integrationError) {
+      if (isMissingSelectedSourceColumn(integrationError)) {
+        return NextResponse.json(
+          {
+            error: "The Notion tasks database migration has not been applied yet. Apply the pending Supabase migration, then choose the authoritative tasks database.",
+            needsDatabaseSelection: true,
+          },
+          { status: 409 },
+        )
       }
 
-      return NextResponse.json(sourceIntakeResponseSchema.parse(responsePayload))
+      throw new Error(integrationError.message)
     }
 
-    const renderedResults = await Promise.all(results.map((result, index) => renderNotionResult(accessToken, result, index)))
-    const sourceText = renderedResults.join("\n\n---\n\n")
-    const extraction = await extractCandidatesFromText({
-      source: "notion",
-      sourceRef: query,
-      label: "Notion scheduling import",
-      text: sourceText,
-    })
+    const databaseId = integration?.selected_source_id
+
+    if (!databaseId) {
+      return NextResponse.json(
+        {
+          error: "Choose the authoritative Notion tasks database before importing.",
+          needsDatabaseSelection: true,
+        },
+        { status: 409 },
+      )
+    }
+
+    const databaseName = normalizeText(integration?.selected_source_name)
+    const pages = await queryNotionDatabase(token.access_token, databaseId)
+    const extractedCandidates = pagesToCandidates(pages, databaseName)
+    const summary = buildSummary(extractedCandidates, pages, databaseName)
     const sourceSnapshot = await insertSourceSnapshot({
       adminClient,
       userId: user.id,
       source: "notion",
-      sourceRef: query,
-      freshness: "partial",
-      summary: extraction.summary,
+      sourceRef: databaseId,
+      freshness: "fresh",
+      summary,
       payload: {
-        query,
-        resultCount: results.length,
-        resultIds: results.map((result) => result.id).filter(Boolean),
-        model: extraction.model,
-        candidateCount: extraction.candidates.length,
+        databaseId,
+        databaseName,
+        rowCount: pages.length,
+        candidateCount: extractedCandidates.length,
       },
     })
     const candidates = await insertSourceCandidates({
       adminClient,
       userId: user.id,
       sourceSnapshotId: sourceSnapshot.id,
-      candidates: extraction.candidates,
+      candidates: extractedCandidates,
     })
 
     await adminClient
@@ -269,16 +380,45 @@ export async function POST(request: Request) {
 
     const message = error instanceof Error ? error.message : "Unknown Notion import error."
     const needsAuthorization = message.startsWith("NOTION_REAUTH_REQUIRED:")
+    const databaseNotFound = message.startsWith("NOTION_DATABASE_NOT_FOUND:")
+    const detail = message
+      .replace("NOTION_REAUTH_REQUIRED:", "")
+      .replace("NOTION_DATABASE_NOT_FOUND:", "")
+      .trim()
+
+    if (userId && (databaseNotFound || needsAuthorization)) {
+      try {
+        const { adminClient } = await requireAuthenticatedUser()
+        await insertSourceSnapshot({
+          adminClient,
+          userId,
+          source: "notion",
+          sourceRef: null,
+          freshness: "failed",
+          summary: databaseNotFound
+            ? "The selected Notion tasks database could not be read. Share it with the Notion connection or choose a different database."
+            : detail,
+          payload: {
+            reason: databaseNotFound ? "database_not_readable" : "reauthorization_required",
+          },
+        })
+      } catch (recordError) {
+        console.error("Failed to record Notion import failure state.", recordError)
+      }
+    }
 
     return NextResponse.json(
       {
         error: needsAuthorization
-          ? message.replace("NOTION_REAUTH_REQUIRED:", "").trim()
-          : "Failed to import Notion context.",
-        details: message,
+          ? detail
+          : databaseNotFound
+            ? "The selected Notion tasks database could not be read. Share it with the Notion connection or choose a different database."
+            : "Failed to import Notion tasks database.",
+        details: detail || message,
         needsAuthorization,
+        needsDatabaseSelection: databaseNotFound,
       },
-      { status: needsAuthorization ? 409 : 500 },
+      { status: needsAuthorization || databaseNotFound ? 409 : 500 },
     )
   }
 }

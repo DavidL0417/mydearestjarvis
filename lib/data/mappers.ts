@@ -201,6 +201,8 @@ export function mapUserIntegrationRowToUserIntegration(row: UserIntegrationRow):
     providerUserId: normalizeNullableText(row.provider_user_id),
     status: row.status,
     selectedCalendarId: normalizeNullableText(row.selected_calendar_id),
+    selectedSourceId: normalizeNullableText(row.selected_source_id),
+    selectedSourceName: normalizeNullableText(row.selected_source_name),
     lastSyncedAt: normalizeNullableText(row.last_synced_at),
     createdAt: row.created_at,
     updatedAt: row.updated_at,

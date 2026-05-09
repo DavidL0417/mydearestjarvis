@@ -450,18 +450,19 @@ export default function DashboardPage() {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="grid min-h-0 flex-1 grid-cols-1 gap-0 xl:grid-cols-[minmax(0,1fr)_380px] xl:divide-x xl:divide-rule">
-          <div className="flex min-h-[560px] min-w-0 flex-col gap-4 xl:min-h-0 xl:pr-6">
+          <div className="grid min-h-[560px] min-w-0 grid-cols-1 gap-4 xl:min-h-0 xl:grid-cols-[280px_minmax(0,1fr)] xl:gap-6 xl:pr-6">
             <DailyCommandStrip
               dailyPlan={dashboardData.dailyPlan}
               isPlanning={isScheduling}
               plannerStatus={plannerStatus}
               plannerSummary={plannerSummary}
+              placement="side"
               onBuild={() => void handleDailyPlan()}
               onReplan={async (command) => {
                 await handleDailyPlan(command)
               }}
             />
-            <div className="min-h-0 flex-1">
+            <div className="min-h-0 min-w-0 flex-1">
               <ScheduleView
                 calendars={calendars}
                 visibleCalendarIds={visibleCalendarIds}

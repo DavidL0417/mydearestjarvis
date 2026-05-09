@@ -100,21 +100,21 @@ export function LandingHero() {
           </span>
           <span className="text-[var(--copper)]">01</span>
           <span aria-hidden="true">·</span>
-          <span>For students who&apos;ve felt the friday-night gut drop</span>
+          <span>A secretary that connects to everything</span>
         </p>
 
         <h1
           ref={headlineRef}
           className="landing-display max-w-[20ch] text-[clamp(2.6rem,8vw,6rem)] font-semibold leading-[0.96] text-foreground opacity-0"
         >
-          Sit down and know{" "}
+          You never have to{" "}
           <span
             ref={keywordRef}
             data-bloom-dim
             className="landing-keyword opacity-0"
             style={{ clipPath: "inset(0 100% 0 0)" }}
           >
-            exactly what to start
+            think about it
           </span>
         </h1>
 
@@ -122,13 +122,13 @@ export function LandingHero() {
           ref={subheadRef}
           className="max-w-[52ch] text-[clamp(1.05rem,1.6vw,1.2rem)] leading-[1.5] text-foreground/75 opacity-0"
         >
-          Pulled from your Canvas and syllabi, broken into the next concrete action, surfaced two weeks before crunch.
+          Jarvis connects to your Gmail, Canvas, Notion, and everything else — then autonomously decides what you should do next. Full context. Zero effort.
         </p>
 
         <div ref={formRef} className="flex flex-col gap-3 opacity-0">
           <WaitlistForm variant="compact" id="hero-waitlist" />
           <p className="landing-mark text-[10.5px] text-muted-foreground">
-            Invites in order. No spam. No Notion to build, no AI hijacking your day.
+            Invites in order. No spam. No setup. It just knows.
           </p>
         </div>
       </div>

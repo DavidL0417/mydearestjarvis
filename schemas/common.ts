@@ -93,6 +93,8 @@ export const userIntegrationSchema = z.object({
   providerUserId: z.string().min(1).nullable(),
   status: userIntegrationStatusSchema,
   selectedCalendarId: z.string().min(1).nullable(),
+  selectedSourceId: z.string().min(1).nullable(),
+  selectedSourceName: z.string().min(1).nullable(),
   lastSyncedAt: z.string().datetime({ offset: true }).nullable(),
   createdAt: z.string().datetime({ offset: true }),
   updatedAt: z.string().datetime({ offset: true }),
@@ -104,6 +106,8 @@ export const sourceConnectorSchema = z.object({
   detail: z.string().min(1),
   account: z.string().min(1).nullable(),
   canRun: z.boolean(),
+  selectedSourceId: z.string().min(1).nullable(),
+  selectedSourceName: z.string().min(1).nullable(),
 })
 
 export const scheduleEventSchema = z.object({
