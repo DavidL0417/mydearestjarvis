@@ -1,13 +1,11 @@
 import type { Metadata } from "next"
 
-import { CursorSpotlight } from "@/components/landing/cursor-spotlight"
 import { DashboardPreview } from "@/components/landing/dashboard-preview"
 import { LandingFooter } from "@/components/landing/landing-footer"
 import { LandingHero } from "@/components/landing/landing-hero"
+import { LandingMotion } from "@/components/landing/landing-motion"
 import { LandingNav } from "@/components/landing/landing-nav"
-import { ParallaxGlow } from "@/components/landing/parallax-glow"
 import { SectionReveal } from "@/components/landing/section-reveal"
-import { TimeSpine } from "@/components/landing/time-spine"
 import { WaitlistForm } from "@/components/landing/waitlist-form"
 
 export const metadata: Metadata = {
@@ -76,47 +74,47 @@ export default function LandingPage() {
         } as React.CSSProperties
       }
     >
-      <ParallaxGlow />
       <span aria-hidden="true" className="landing-grain" />
-      <CursorSpotlight />
+      <LandingMotion />
 
-      <TimeSpine />
       <LandingNav />
+
+      <section
+        id="section-hero"
+        data-spine-section="hero"
+        data-spine-index="01"
+        data-spine-label="start"
+        aria-labelledby="hero-heading"
+        className="relative z-10 min-h-[100svh]"
+      >
+        <LandingHero />
+      </section>
 
       <div className="relative z-10 pl-[var(--landing-px)] pr-[var(--landing-px)] md:pl-[calc(var(--landing-px)+72px)]">
         <div className="mx-auto w-full max-w-[1180px]">
-          <section
-            id="section-hero"
-            data-spine-section="hero"
-            data-spine-index="01"
-            data-spine-label="start"
-            aria-labelledby="hero-heading"
-            className="relative grid grid-cols-1 gap-[clamp(40px,7vw,84px)] pb-[clamp(60px,9vw,120px)] lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:items-end"
-          >
-            <div className="lg:col-span-2">
-              <LandingHero />
-            </div>
-            <div className="lg:col-span-2 lg:-mt-6">
-              <SectionReveal oneShot>
-                <div className="ml-auto w-full max-w-[940px] pl-0 lg:pl-[clamp(40px,8vw,140px)]">
-                  <div className="relative">
-                    <span
-                      aria-hidden="true"
-                      className="pointer-events-none absolute -inset-4 -z-10 rounded-md"
-                      style={{
-                        background:
-                          "radial-gradient(60% 60% at 30% 40%, oklch(0.74 0.14 42 / 0.18), transparent 70%)",
-                      }}
-                    />
-                    <DashboardPreview />
-                    <p className="mt-3 max-w-[44ch] pl-1 text-[12px] leading-snug text-muted-foreground">
-                      Everything from every source, distilled into one view. You open it and start — nothing to figure out.
-                    </p>
-                  </div>
+          <SectionReveal oneShot>
+            <section
+              aria-label="Jarvis dashboard preview"
+              className="relative pb-[clamp(60px,9vw,120px)] pt-[clamp(48px,7vw,96px)]"
+            >
+              <div className="ml-auto w-full max-w-[940px] pl-0 lg:pl-[clamp(40px,8vw,140px)]">
+                <div className="relative">
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute -inset-4 -z-10 rounded-md"
+                    style={{
+                      background:
+                        "radial-gradient(60% 60% at 30% 40%, oklch(0.74 0.14 42 / 0.18), transparent 70%)",
+                    }}
+                  />
+                  <DashboardPreview />
+                  <p className="mt-3 max-w-[44ch] pl-1 text-[12px] leading-snug text-muted-foreground">
+                    Everything from every source, distilled into one view. You open it and start — nothing to figure out.
+                  </p>
                 </div>
-              </SectionReveal>
-            </div>
-          </section>
+              </div>
+            </section>
+          </SectionReveal>
 
           <hr className="border-t border-[var(--rule)]" aria-hidden="true" />
 
@@ -232,7 +230,7 @@ export default function LandingPage() {
               <div id="waitlist" className="scroll-mt-24">
                 <SectionEyebrow index="05" label="Early access" />
                 <h2 className="landing-display mt-4 max-w-[18ch] text-[clamp(2rem,4.4vw,3.4rem)] font-semibold leading-[1.0] text-foreground">
-                  Stop thinking. Start doing.
+                  Stop thinking. <span className="cta-accent-phrase">Start doing.</span>
                 </h2>
                 <p className="mt-4 max-w-[44ch] text-[clamp(1rem,1.4vw,1.125rem)] leading-[1.55] text-foreground/70">
                   Jarvis is invite-only while it stabilizes. Drop your email and you&apos;ll hear when your

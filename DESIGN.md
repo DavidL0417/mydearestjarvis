@@ -1,51 +1,58 @@
-# JARVIS Design (current snapshot, pre-overhaul)
+# JARVIS Design
 
-This file documents the existing dark-SaaS surface so the overhaul has a reference point. The new direction will replace most of it.
+Current snapshot after the landing motion overhaul. JARVIS should feel like operational software with a secretary-second-brain posture: spare, precise, schedule-first, and honest about limits.
 
-## Color (current)
+## Color
 
-Dark, restrained. OKLCH neutrals tinted toward cool indigo (hue ~282). Single rust/orange primary at oklch(0.77 0.12 24).
+Dark, warm, restrained. The core identity is copper on tinted near-black neutrals, with limited signal colors used only when they communicate source intake or scheduling state.
 
-- background: oklch(0.19 0.024 282)
-- card: oklch(0.235 0.022 286)
-- border: oklch(0.34 0.022 286)
-- foreground: oklch(0.96 0.008 85) — warm off-white
-- muted-foreground: oklch(0.78 0.012 85)
-- primary: oklch(0.77 0.12 24) — rust
-- destructive: oklch(0.52 0.18 21)
+- landing background: oklch(0.135 0.012 35)
+- landing foreground: oklch(0.96 0.014 70)
+- copper: oklch(0.74 0.14 42)
+- copper bright: oklch(0.84 0.13 50)
+- signal teal: oklch(0.70 0.09 185)
+- signal blue: oklch(0.68 0.08 250)
+- signal green: oklch(0.72 0.08 132)
+- rule: oklch(0.26 0.014 35)
 
-## Typography (current)
+Signal colors are not decorative palette expansion. They represent abstract source channels flowing into a plan.
 
-- Sans: Geist Sans
-- Mono: Geist Mono, reserved for true technical/code contexts.
-- Numerals use tabular settings without forcing operational labels into monospaced type.
-- Hierarchy is still compact, but the interface should read as legible operational software rather than terminal cosplay.
+## Typography
 
-## Layout (current)
+- Sans: Geist Sans for product UI.
+- Display: Bricolage Grotesque for landing display moments.
+- Mono: Geist Mono, reserved for compact marks, numerals, and technical contexts.
+- Numerals use tabular settings where alignment matters without turning ordinary labels into terminal cosplay.
 
-- Single full-height shell, max-width 1680px, 12px padding.
-- Left rail: 48px wide vertical strip with 3 icon buttons (calendars, refresh, schedule).
-- Header: full-width card, logo + title + sign-out.
-- Stat row: 4 equal pills (Tasks, Loose, Memory, Sources).
-- Body: 2-column grid (1fr | 390px). Schedule view left; master input + check-in + task manager stacked right.
-- Calendars sidebar opens as a Sheet from the left.
+## Landing Motion
 
-## Components in use
+The landing uses two motion layers: a full-viewport hero ambient field, then a scroll-synced "sources to plan" system.
 
-shadcn/ui baseline (full set installed). Heavily used: Card, Button, Dialog, Sheet, Input, Tabs. Custom: schedule-view (998 lines), task-manager, master-input, calendars-sidebar.
+- The hero owns the first viewport. Its faint polygon field is visible on load, gently pulses/displaces, and receives only subtle pointer illumination before scrolling away with the page.
+- The fixed source-to-plan system should not show fragmented geometry on first load; it begins as the user leaves the hero and continues through the final CTA.
+- Abstract source channels enter from the edges, converge into a central sorting point, then resolve into schedule geometry.
+- The left time spine shares the same section/progress model as the background, so it reads as the scheduler rail for the animation.
+- The final CTA may dim the background toward black while accenting the action phrase, reinforcing the move from planning to doing.
+- Motion uses SVG/CSS with light JS and selective animejs entrance choreography.
+- Reduced-motion mode keeps a static source-to-plan composition instead of hiding the visual system.
+- Source names and logos are intentionally absent to avoid overpromising specific integrations.
 
-## What is bad about the current surface
+## Product Layout
 
-- Reads as generic productivity-SaaS dark mode. First-order category reflex.
-- Card-everywhere layout. Stat pills are the hero-metric template at small scale.
-- Hierarchy is flat. The schedule does not dominate the way "schedule-first" demands.
-- Iconography is shadcn-default; no instrumentation feel.
-- Background gradient on body is decorative, not functional.
+- Main authenticated surface remains schedule-first.
+- Daily command strip and schedule are primary.
+- Source intake, review ledger, risk/source context, command input, task queue, and sync state are supporting regions.
+- Controls keep stable dimensions to avoid layout shift.
+- Empty, auth, error, backend, source-refresh, and calendar-sync states must stay honest.
 
-## Constraints the overhaul must preserve
+## Components In Use
 
-- Same Next.js + Tailwind + shadcn baseline (do not migrate frameworks).
-- Same authenticated page surface and component contracts (props, types).
-- Stable control dimensions (no layout shift on refresh).
-- Real data only; honest empty states.
-- Icon-first repeated controls.
+Next.js App Router, Tailwind v4, shadcn/ui baseline, lucide icons, animejs for targeted motion. Custom surfaces include the landing motion system, time spine, dashboard preview, schedule view, task manager, master input, calendars sidebar, and secretary overlay.
+
+## Constraints
+
+- Do not migrate frameworks.
+- Do not hide backend, auth, source-refresh, or calendar-sync failures behind placeholders.
+- Do not add fake/demo content to landing or dashboard previews beyond explicit illustrative static marketing mockups.
+- Keep repeated controls icon-first with tooltips where recognition needs help.
+- Avoid nested cards, marketing clutter inside the product surface, glassmorphism, gradient text, side-stripe accents, and generic SaaS hero metrics.

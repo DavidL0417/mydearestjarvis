@@ -7,11 +7,17 @@ import { useMagneticPull } from "@/hooks/use-magnetic-pull"
 
 export function LandingNav() {
   const [scrolled, setScrolled] = useState(false)
+  const scrolledRef = useRef(false)
   const ctaRef = useRef<HTMLAnchorElement | null>(null)
   useMagneticPull(ctaRef, { strength: 0.18, radius: 80 })
 
   useEffect(() => {
-    const update = () => setScrolled(window.scrollY > 8)
+    const update = () => {
+      const nextScrolled = window.scrollY > 8
+      if (nextScrolled === scrolledRef.current) return
+      scrolledRef.current = nextScrolled
+      setScrolled(nextScrolled)
+    }
     update()
     window.addEventListener("scroll", update, { passive: true })
     return () => window.removeEventListener("scroll", update)

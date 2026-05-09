@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react"
 import { WaitlistForm } from "@/components/landing/waitlist-form"
 
 export function LandingHero() {
+  const heroRef = useRef<HTMLDivElement | null>(null)
   const eyebrowRef = useRef<HTMLParagraphElement | null>(null)
   const headlineRef = useRef<HTMLHeadingElement | null>(null)
   const subheadRef = useRef<HTMLParagraphElement | null>(null)
@@ -87,8 +88,21 @@ export function LandingHero() {
   }, [])
 
   return (
-    <div className="landing-hero relative">
-      <div className="relative z-10 flex flex-col gap-7 pt-[clamp(56px,9vw,128px)]">
+    <div ref={heroRef} className="landing-hero relative min-h-[100svh] overflow-hidden">
+      <div aria-hidden="true" className="hero-ambient-field">
+        <span className="hero-ambient-wash" />
+        <span className="hero-ambient-orb hero-ambient-orb-a" />
+        <span className="hero-ambient-orb hero-ambient-orb-b" />
+        <svg className="hero-ambient-svg" viewBox="0 0 1200 720" preserveAspectRatio="xMidYMid slice">
+          <path className="hero-ambient-poly hero-ambient-poly-a" d="M 272 176 L 686 42 L 1044 186 L 914 492 L 394 548 Z" />
+          <path className="hero-ambient-poly hero-ambient-poly-b" d="M 442 136 L 842 84 L 1018 358 L 704 612 L 318 448 Z" />
+          <path className="hero-ambient-poly hero-ambient-poly-c" d="M 126 460 L 496 216 L 800 398 L 566 686 L 174 624 Z" />
+          <ellipse className="hero-ambient-ring hero-ambient-ring-a" cx="720" cy="330" rx="315" ry="168" />
+          <ellipse className="hero-ambient-ring hero-ambient-ring-b" cx="720" cy="330" rx="214" ry="112" />
+          <circle className="hero-ambient-core" cx="720" cy="330" r="4" />
+        </svg>
+      </div>
+      <div className="relative z-10 mx-auto flex min-h-[100svh] w-full max-w-[1180px] flex-col justify-center gap-7 px-[var(--landing-px)] pb-[clamp(72px,10vh,132px)] pt-[calc(56px+clamp(28px,5vh,76px))] md:pl-[calc(var(--landing-px)+72px)]">
         <p
           ref={eyebrowRef}
           className="landing-mark flex items-center gap-2 text-[10.5px] text-muted-foreground opacity-0"
@@ -104,18 +118,20 @@ export function LandingHero() {
         </p>
 
         <h1
+          id="hero-heading"
           ref={headlineRef}
           className="landing-display max-w-[20ch] text-[clamp(2.6rem,8vw,6rem)] font-semibold leading-[0.96] text-foreground opacity-0"
         >
-          You never have to{" "}
+          Stop deciding{" "}
           <span
             ref={keywordRef}
             data-bloom-dim
             className="landing-keyword opacity-0"
             style={{ clipPath: "inset(0 100% 0 0)" }}
           >
-            think about it
+            what to do
           </span>
+          .
         </h1>
 
         <p
