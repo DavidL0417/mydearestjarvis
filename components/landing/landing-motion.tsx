@@ -26,6 +26,8 @@ export interface LandingMotionState {
   activeProgress: number
   easedProgress: number
   overallProgress: number
+  /** Continuous 0..N progress that interpolates between section anchors — never plateaus. */
+  sceneProgress: number
   reducedMotion: boolean
   sections: LandingMotionSection[]
 }
@@ -47,6 +49,7 @@ const DEFAULT_MOTION: LandingMotionState = {
   activeProgress: 0,
   easedProgress: 0,
   overallProgress: 0,
+  sceneProgress: 0,
   reducedMotion: false,
   sections: [DEFAULT_SECTION],
 }
@@ -57,6 +60,27 @@ function smoothstep(value: number) {
 
 function clamp01(value: number) {
   return Math.max(0, Math.min(1, value))
+}
+
+function computeSceneProgress(scrollY: number, sections: LandingMotionSection[]) {
+  if (sections.length === 0) return 0
+  const anchors = sections.map((s, i) => ({
+    p: i,
+    y: i === 0 ? 0 : s.startScroll,
+  }))
+  const last = sections[sections.length - 1]
+  anchors.push({ p: sections.length, y: last.endScroll })
+
+  if (scrollY <= anchors[0].y) return anchors[0].p
+  for (let i = 0; i < anchors.length - 1; i += 1) {
+    const a = anchors[i]
+    const b = anchors[i + 1]
+    if (scrollY <= b.y) {
+      const span = Math.max(1, b.y - a.y)
+      return a.p + (scrollY - a.y) / span
+    }
+  }
+  return anchors[anchors.length - 1].p
 }
 
 function buildMotionState(
@@ -86,6 +110,7 @@ function buildMotionState(
     activeProgress,
     easedProgress: smoothstep(activeProgress),
     overallProgress,
+    sceneProgress: computeSceneProgress(scrollY, measured),
     reducedMotion,
     sections: measured,
   }
@@ -156,7 +181,8 @@ export function LandingMotion() {
         const sameSection = previous.activeId === next.activeId
         const closeEnough =
           Math.abs(previous.activeProgress - next.activeProgress) < 0.0002 &&
-          Math.abs(previous.overallProgress - next.overallProgress) < 0.0002
+          Math.abs(previous.overallProgress - next.overallProgress) < 0.0002 &&
+          Math.abs(previous.sceneProgress - next.sceneProgress) < 0.0008
         if (sameSection && closeEnough && previous.sections === next.sections) return previous
         return next
       })

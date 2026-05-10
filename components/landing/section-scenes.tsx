@@ -52,31 +52,25 @@ function clamp01(value: number) {
   return Math.max(0, Math.min(1, value))
 }
 
-function sceneIndex(id: LandingMotionState["activeId"]) {
-  return ["hero", "problem", "how", "not", "cta"].indexOf(id)
-}
-
 export function SectionScenes({ motion }: SectionScenesProps) {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const stage = useMemo(() => {
-    const index = Math.max(0, sceneIndex(motion.activeId))
-    const p = motion.easedProgress
-    const sceneProgress = index + p
-    const systemOpacity = clamp01((sceneProgress - 0.28) * 1.85)
-    const streamDraw = clamp01((sceneProgress - 0.22) * 0.62)
-    const gather = clamp01((sceneProgress - 0.92) * 0.52)
-    const planDraw = clamp01((sceneProgress - 1.62) * 0.48)
-    const finish = clamp01((motion.overallProgress - 0.72) / 0.28)
-    const finalAct = clamp01(Math.max((sceneProgress - 3.25) * 0.58, finish))
-    const planLock = clamp01((sceneProgress - 2.28) * 0.46 + finalAct * 0.18)
-    const scatter = clamp01(0.22 + (1 - Math.abs(sceneProgress - 1.18)) * 0.34 - planLock * 0.12)
-    const filterOut = clamp01((sceneProgress - 3.05) * 0.78 + finalAct * 0.14)
-    const finalDim = clamp01(Math.max((sceneProgress - 4.02) * 1.05, (finish - 0.55) * 2.4))
+    const sp = motion.sceneProgress
+    const systemOpacity = clamp01((sp - 0.18) * 1.45)
+    const streamDraw = clamp01((sp - 0.45) * 0.48)
+    const gather = clamp01((sp - 1.55) * 0.42)
+    const planDraw = clamp01((sp - 2.55) * 0.5)
+    const finish = clamp01((motion.overallProgress - 0.78) / 0.22)
+    const finalAct = clamp01(Math.max((sp - 4.15) * 0.95, finish))
+    const planLock = clamp01((sp - 3.4) * 0.55 + finalAct * 0.12)
+    const scatter = clamp01(0.22 + (1 - Math.abs(sp - 1.45)) * 0.34 - planLock * 0.08)
+    const filterOut = clamp01((sp - 3.7) * 0.72 + finalAct * 0.1)
+    const finalDim = clamp01(Math.max((sp - 4.35) * 1.55, (finish - 0.4) * 2.0))
 
     return {
       gather,
-      "--scene-p": p.toFixed(4),
-      "--scene-progress": sceneProgress.toFixed(4),
+      "--scene-p": sp.toFixed(4),
+      "--scene-progress": sp.toFixed(4),
       "--system-opacity": systemOpacity.toFixed(4),
       "--overall-p": motion.overallProgress.toFixed(4),
       "--stream-draw": streamDraw.toFixed(4),
@@ -88,7 +82,7 @@ export function SectionScenes({ motion }: SectionScenesProps) {
       "--final-p": finalAct.toFixed(4),
       "--final-dim": finalDim.toFixed(4),
     } as CSSProperties & { gather: number }
-  }, [motion.activeId, motion.easedProgress, motion.overallProgress, motion.reducedMotion])
+  }, [motion.sceneProgress, motion.overallProgress, motion.reducedMotion])
 
   const { gather, ...stageStyle } = stage
 

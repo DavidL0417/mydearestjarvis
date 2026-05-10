@@ -306,7 +306,7 @@
 }
 
 .source-streams {
-  opacity: calc(0.5 + var(--stream-draw) * 0.42 - var(--plan-lock) * 0.14);
+  opacity: calc(0.5 + var(--stream-draw) * 0.48 - var(--plan-lock) * 0.04);
   transition: opacity 520ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -324,7 +324,7 @@
 }
 
 .source-nodes {
-  opacity: calc(0.24 + var(--scatter-p) * 0.66 - var(--plan-lock) * 0.18);
+  opacity: calc(0.28 + var(--scatter-p) * 0.66 - var(--plan-lock) * 0.06);
 }
 
 .source-node {
@@ -548,45 +548,47 @@
   inset: -12% -4%;
   width: 108%;
   height: 124%;
-  opacity: 0.32;
+  opacity: 0.55;
 }
 
 .hero-ambient-poly {
   fill: none;
-  stroke: oklch(0.78 0.13 46 / 0.20);
-  stroke-width: 0.72;
+  stroke: oklch(0.78 0.13 46 / 0.42);
+  stroke-width: 0.85;
   vector-effect: non-scaling-stroke;
   transform-box: fill-box;
   transform-origin: center;
-  animation: hero-poly-drift 18s ease-in-out infinite;
+  animation: hero-poly-drift 16s ease-in-out infinite;
 }
 
 .hero-ambient-poly-b {
-  stroke: oklch(0.55 0.14 38 / 0.16);
-  animation-delay: -6s;
-  animation-duration: 22s;
+  stroke: oklch(0.55 0.14 38 / 0.34);
+  stroke-width: 0.95;
+  animation-delay: -5s;
+  animation-duration: 20s;
 }
 
 .hero-ambient-poly-c {
-  stroke: oklch(0.84 0.13 50 / 0.14);
-  animation-delay: -11s;
-  animation-duration: 26s;
+  stroke: oklch(0.84 0.13 50 / 0.28);
+  stroke-width: 0.78;
+  animation-delay: -10s;
+  animation-duration: 24s;
 }
 
 .hero-ambient-ring {
   fill: none;
-  stroke: oklch(0.78 0.13 46 / 0.13);
-  stroke-width: 0.8;
+  stroke: oklch(0.78 0.13 46 / 0.26);
+  stroke-width: 0.95;
   vector-effect: non-scaling-stroke;
   transform-box: fill-box;
   transform-origin: center;
-  animation: hero-ring-turn 22s linear infinite;
+  animation: hero-ring-turn 28s linear infinite;
 }
 
 .hero-ambient-ring-b {
-  stroke: oklch(0.55 0.14 38 / 0.11);
+  stroke: oklch(0.55 0.14 38 / 0.22);
   animation-direction: reverse;
-  animation-duration: 30s;
+  animation-duration: 38s;
 }
 
 .hero-ambient-core {
@@ -600,8 +602,8 @@
 }
 
 @keyframes hero-poly-drift {
-  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); opacity: 0.72; }
-  50% { transform: translate3d(1.4%, -1%, 0) rotate(1.4deg); opacity: 1; }
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); opacity: 0.55; }
+  50% { transform: translate3d(2.2%, -1.4%, 0) rotate(1.8deg) scale(1.035); opacity: 1; }
 }
 
 @keyframes hero-ring-turn {

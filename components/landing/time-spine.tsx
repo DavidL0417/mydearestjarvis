@@ -98,11 +98,8 @@ export function TimeSpine({ motion }: TimeSpineProps) {
     el.scrollIntoView({ behavior: "smooth", block: "start" })
   }
 
-  const activeSection = motion.activeSection ?? motion.sections[0]
-  const activeTop = activeSection ? activeSection.topRatio * 100 : 0
-  const activeHeight = activeSection ? Math.max(activeSection.heightRatio * 100, 4) : 4
-  const fillHeight = Math.max(0.35, activeHeight * motion.activeProgress)
-  const scrubberTop = activeTop + fillHeight
+  const fillHeight = motion.overallProgress * 100
+  const scrubberTop = fillHeight
 
   return (
     <aside
@@ -192,22 +189,21 @@ export function TimeSpine({ motion }: TimeSpineProps) {
             )
           })}
 
-          {/* the live copper fill that rises within the active block */}
+          {/* continuous copper fill — grows from top as user scrolls through the doc */}
           <div
             ref={fillRef}
             data-fill
             aria-hidden="true"
-            className="pointer-events-none absolute left-[7px] w-[28px] origin-top opacity-0"
+            className="pointer-events-none absolute left-[7px] top-0 w-[28px] origin-top opacity-0"
             style={{
-              top: `${activeTop}%`,
               height: `${fillHeight}%`,
               background:
                 "linear-gradient(to bottom, var(--signal-copper), var(--signal-teal))",
               borderRadius: "2px 2px 0 0",
-              boxShadow: "0 0 0 1px oklch(0.84 0.12 50 / 0.45) inset, 0 8px 24px -8px oklch(0.74 0.14 42 / 0.7)",
-              transition:
-                "top 280ms cubic-bezier(0.22, 1, 0.36, 1), height 280ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease-out",
-              willChange: "top, height",
+              boxShadow:
+                "0 0 0 1px oklch(0.84 0.12 50 / 0.45) inset, 0 8px 24px -8px oklch(0.74 0.14 42 / 0.7)",
+              transition: "opacity 180ms ease-out",
+              willChange: "height",
             }}
           />
 
@@ -218,8 +214,7 @@ export function TimeSpine({ motion }: TimeSpineProps) {
             style={{
               top: `${scrubberTop}%`,
               transform: "translate3d(0, -8px, 0)",
-              transition:
-                "top 280ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease-out",
+              transition: "opacity 180ms ease-out",
               willChange: "top",
             }}
           >
