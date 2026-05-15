@@ -5,7 +5,7 @@ import {
   type NotionPageResult,
   type NotionPropertyValue,
 } from "@/lib/notion"
-import { insertSourceCandidates, insertSourceSnapshot } from "@/lib/sources/persistence"
+import { insertAndAutoApproveSourceCandidates, insertSourceSnapshot } from "@/lib/sources/persistence"
 import { getStoredIntegrationToken } from "@/lib/supabase/integration-tokens"
 import { createSupabaseAdminClient } from "@/lib/supabase/server"
 import type { ExtractedSourceCandidate } from "@/lib/sources/extraction"
@@ -308,7 +308,7 @@ export async function refreshNotionForUser(userId: string): Promise<SourceIntake
       candidateCount: extractedCandidates.length,
     },
   })
-  const candidates = await insertSourceCandidates({
+  const candidates = await insertAndAutoApproveSourceCandidates({
     adminClient,
     userId,
     sourceSnapshotId: sourceSnapshot.id,

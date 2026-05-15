@@ -190,7 +190,6 @@ function deriveRiskItems(input: {
   tasks: Task[]
   events: ScheduleEvent[]
   schedule: SchedulePlanResult
-  pendingCandidateCount: number
   failedSourceSummaries: string[]
   horizonEnd: Date
 }): DailyPlanRiskItem[] {
@@ -262,14 +261,6 @@ function deriveRiskItems(input: {
         severity: "medium",
       })
     }
-  }
-
-  if (input.pendingCandidateCount > 0) {
-    risks.push({
-      title: "Review queue waiting",
-      detail: `${input.pendingCandidateCount} extracted item${input.pendingCandidateCount === 1 ? "" : "s"} need approval before JARVIS can fully trust the plan.`,
-      severity: "medium",
-    })
   }
 
   for (const summary of input.failedSourceSummaries.slice(0, 2)) {
@@ -647,7 +638,6 @@ export async function buildDailyPlan(input: {
     tasks: loaded.context.tasks,
     events: proposedEvents,
     schedule,
-    pendingCandidateCount: loaded.pendingCandidateCount,
     failedSourceSummaries: loaded.failedSourceSummaries,
     horizonEnd,
   })

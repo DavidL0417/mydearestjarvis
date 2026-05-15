@@ -48,6 +48,16 @@ export const approveCandidatesResponseSchema = z.object({
   candidates: z.array(sourceCandidateSchema),
 })
 
+export const undoCandidatesRequestSchema = z.object({
+  candidateIds: z.array(z.string().uuid()).min(1),
+})
+
+export const undoCandidatesResponseSchema = z.object({
+  success: z.literal(true),
+  candidates: z.array(sourceCandidateSchema),
+  deletedTaskIds: z.array(z.string().uuid()),
+})
+
 export type PasteSourceRequest = z.infer<typeof pasteSourceRequestSchema>
 export type SourceIntakeResponse = z.infer<typeof sourceIntakeResponseSchema>
 export type UpdateCandidateRequest = z.infer<typeof updateCandidateRequestSchema>
@@ -55,5 +65,7 @@ export type ApproveCandidatesRequest = z.infer<typeof approveCandidatesRequestSc
 export type CandidateListResponse = z.infer<typeof candidateListResponseSchema>
 export type UpdateCandidateResponse = z.infer<typeof updateCandidateResponseSchema>
 export type ApproveCandidatesResponse = z.infer<typeof approveCandidatesResponseSchema>
+export type UndoCandidatesRequest = z.infer<typeof undoCandidatesRequestSchema>
+export type UndoCandidatesResponse = z.infer<typeof undoCandidatesResponseSchema>
 
 // ##### END BACKEND #####

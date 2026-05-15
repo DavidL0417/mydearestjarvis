@@ -60,6 +60,24 @@ function isTaskCandidate(kind: SourceCandidateKind) {
   return kind === "task" || kind === "deadline" || kind === "event"
 }
 
+const AUTO_APPROVE_CONFIDENCE_THRESHOLD = 0.85
+
+function isAutoApprovableCandidate(candidate: SourceCandidate) {
+  if (!isTaskCandidate(candidate.kind)) {
+    return false
+  }
+
+  if (!candidate.dueAt) {
+    return false
+  }
+
+  if (candidate.confidence === null) {
+    return false
+  }
+
+  return candidate.confidence >= AUTO_APPROVE_CONFIDENCE_THRESHOLD
+}
+
 function candidateKey(input: {
   kind: SourceCandidateKind
   title: string
@@ -295,6 +313,107 @@ export async function insertSourceCandidates(input: {
   }
 
   return (data || []).map(mapSourceCandidateRowToCandidate)
+}
+
+export async function insertAndAutoApproveSourceCandidates(input: {
+  adminClient: AdminClient
+  userId: string
+  sourceSnapshotId: string
+  sourceFileId?: string | null
+  candidates: ExtractedSourceCandidate[]
+}): Promise<SourceCandidate[]> {
+  const inserted = await insertSourceCandidates(input)
+
+  if (inserted.length === 0) {
+    return inserted
+  }
+
+  const autoIds = inserted.filter(isAutoApprovableCandidate).map((candidate) => candidate.id)
+
+  if (autoIds.length === 0) {
+    return inserted
+  }
+
+  const { candidates: approved } = await approveSourceCandidates({
+    adminClient: input.adminClient,
+    userId: input.userId,
+    candidateIds: autoIds,
+  })
+  const approvedById = new Map(approved.map((candidate) => [candidate.id, candidate]))
+
+  return inserted.map((candidate) => approvedById.get(candidate.id) ?? candidate)
+}
+
+export async function undoSourceCandidateApproval(input: {
+  adminClient: AdminClient
+  userId: string
+  candidateIds: string[]
+}): Promise<{ candidates: SourceCandidate[]; deletedTaskIds: string[] }> {
+  const { data: candidateRows, error: fetchError } = await input.adminClient
+    .from("source_candidates")
+    .select(SOURCE_CANDIDATE_SELECT)
+    .eq("user_id", input.userId)
+    .in("id", input.candidateIds)
+    .eq("status", "approved")
+    .returns<SourceCandidateRow[]>()
+
+  if (fetchError) {
+    throw new Error(fetchError.message)
+  }
+
+  const candidates = (candidateRows || []).map(mapSourceCandidateRowToCandidate)
+
+  if (candidates.length === 0) {
+    return { candidates: [], deletedTaskIds: [] }
+  }
+
+  const taskIds = candidates
+    .map((candidate) => candidate.approvedTaskId)
+    .filter((taskId): taskId is string => Boolean(taskId))
+
+  if (taskIds.length > 0) {
+    const { error: eventDeleteError } = await input.adminClient
+      .from("schedule_events")
+      .delete()
+      .eq("user_id", input.userId)
+      .in("task_id", taskIds)
+
+    if (eventDeleteError) {
+      throw new Error(eventDeleteError.message)
+    }
+
+    const { error: taskDeleteError } = await input.adminClient
+      .from("tasks")
+      .delete()
+      .eq("user_id", input.userId)
+      .in("id", taskIds)
+
+    if (taskDeleteError) {
+      throw new Error(taskDeleteError.message)
+    }
+  }
+
+  const now = new Date().toISOString()
+  const { data: updatedRows, error: updateError } = await input.adminClient
+    .from("source_candidates")
+    .update({
+      status: "dismissed",
+      approved_task_id: null,
+      updated_at: now,
+    })
+    .eq("user_id", input.userId)
+    .in("id", candidates.map((candidate) => candidate.id))
+    .select(SOURCE_CANDIDATE_SELECT)
+    .returns<SourceCandidateRow[]>()
+
+  if (updateError) {
+    throw new Error(updateError.message)
+  }
+
+  return {
+    candidates: (updatedRows || []).map(mapSourceCandidateRowToCandidate),
+    deletedTaskIds: taskIds,
+  }
 }
 
 export async function approveSourceCandidates(input: {

@@ -360,7 +360,7 @@ export async function GET() {
         .select(SOURCE_CANDIDATE_SELECT)
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
-        .limit(12),
+        .limit(40),
       adminClient
         .from("integrations")
         .select(USER_INTEGRATION_SELECT)

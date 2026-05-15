@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 
 import { extractCandidatesFromFile } from "@/lib/sources/extraction"
 import {
-  insertSourceCandidates,
+  insertAndAutoApproveSourceCandidates,
   insertSourceFile,
   insertSourceSnapshot,
   updateSourceFileStatus,
@@ -159,7 +159,7 @@ export async function POST(request: Request) {
         candidateCount: extraction.candidates.length,
       },
     })
-    const candidates = await insertSourceCandidates({
+    const candidates = await insertAndAutoApproveSourceCandidates({
       adminClient,
       userId: user.id,
       sourceSnapshotId: sourceSnapshot.id,

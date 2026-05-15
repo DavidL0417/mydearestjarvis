@@ -24,6 +24,7 @@ import {
   toSidebarCalendar,
   type Calendar,
 } from "@/components/dashboard/calendars-sidebar"
+import { AutoImportDigest } from "@/components/dashboard/auto-import-digest"
 import { ContextRailPanel } from "@/components/dashboard/context-rail-panel"
 import { DailyCommandStrip } from "@/components/dashboard/daily-command-strip"
 import { RailSheet } from "@/components/dashboard/rail-sheet"
@@ -396,6 +397,19 @@ export default function DashboardPage() {
     })
   }
 
+  async function handleUndoAutoImport(candidateId: string) {
+    try {
+      await fetchJson<{ success: true }>("/api/sources/candidates/undo", "Failed to undo auto-import.", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ candidateIds: [candidateId] }),
+      })
+      await loadDashboard(true)
+    } catch (error) {
+      setTaskErrorMessage(error instanceof Error ? error.message : "Failed to undo auto-import.")
+    }
+  }
+
   function buildHardEventsForPlanning(taskIds: string[]) {
     const selectedTaskIds = new Set(taskIds)
 
@@ -512,6 +526,10 @@ export default function DashboardPage() {
 
           <div className="rail-scroll flex min-h-0 min-w-0 flex-col gap-5 overflow-y-auto pb-2 pt-6 xl:pb-2 xl:pl-6 xl:pr-1 xl:pt-0">
             <ContextRailPanel dailyPlan={dashboardData.dailyPlan} sources={dashboardData.sources} />
+            <AutoImportDigest
+              candidates={dashboardData.sourceCandidates}
+              onUndo={handleUndoAutoImport}
+            />
             <TaskManager
               mode="all"
               calendars={calendars}

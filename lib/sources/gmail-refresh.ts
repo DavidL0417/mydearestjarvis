@@ -1,6 +1,6 @@
 import { GMAIL_READONLY_SCOPE, hasOAuthScope } from "@/lib/google-oauth"
 import { extractCandidatesFromText } from "@/lib/sources/extraction"
-import { insertSourceCandidates, insertSourceSnapshot } from "@/lib/sources/persistence"
+import { insertAndAutoApproveSourceCandidates, insertSourceSnapshot } from "@/lib/sources/persistence"
 import {
   getStoredGoogleIntegration,
   getValidGoogleAccessToken,
@@ -184,7 +184,7 @@ export async function refreshGmailForUser(userId: string): Promise<SourceIntakeR
       candidateCount: extraction.candidates.length,
     },
   })
-  const candidates = await insertSourceCandidates({
+  const candidates = await insertAndAutoApproveSourceCandidates({
     adminClient,
     userId,
     sourceSnapshotId: sourceSnapshot.id,
