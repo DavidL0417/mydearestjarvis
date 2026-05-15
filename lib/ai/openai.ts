@@ -128,7 +128,7 @@ export function getOpenAIConfig() {
   const apiKey = process.env.OPENAI_API_KEY
 
   if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is missing. Configure OpenAI before running secretary or scheduling model calls.")
+    throw new Error("OPENAI_API_KEY is missing. Configure OpenAI before running source extraction or classification model calls.")
   }
 
   return {

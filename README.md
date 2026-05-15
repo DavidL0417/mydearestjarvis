@@ -14,7 +14,8 @@ Production v1 secretary scheduler: authenticated Supabase state, migration-backe
 - Next.js App Router
 - TypeScript
 - Supabase Auth and Postgres
-- OpenAI API for secretary dialogue and scheduling
+- Claude API for secretary dialogue and schedule planning
+- OpenAI API for source extraction and helper classification
 - Google Calendar sync into the Supabase mirror
 - Hourly Vercel Cron source refresh through `/api/cron/source-refresh`
 
@@ -29,6 +30,9 @@ SUPABASE_SERVICE_ROLE_KEY=
 
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-4.1
+ANTHROPIC_API_KEY=
+ANTHROPIC_MODEL=claude-sonnet-4-6
+ANTHROPIC_DIALOGUE_MODEL=claude-sonnet-4-6
 CRON_SECRET=
 
 GOOGLE_CLIENT_ID=

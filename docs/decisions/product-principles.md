@@ -12,7 +12,7 @@ JARVIS is a secretary-second-brain scheduler. It should not merely place blocks 
 - External users receive a generic student-planning secretary template by structure only. Do not seed David-specific tasks, deadlines, courses, or personal facts into another user's account.
 - Master Input is a universal assistant surface: it classifies requests, chooses the right memory/source layers, routes day planning through the shared planner, and creates approval records for executable external writes.
 - Master Input should answer the user as dialogue with a personal-secretary posture: attentive, context-aware, and ready to coordinate tasks, schedule, memory, and source state. If a message is not a recognized write command, JARVIS should still respond directly using available context, or surface a clear model/configuration failure instead of returning a generic receipt.
-- Secretary dialogue and scheduling use OpenAI. Missing API keys, model failures, and source failures are hard errors, not occasions for local placeholder replies.
+- Secretary dialogue and scheduling use Claude, with an explicit Sonnet/Opus planner choice for scheduling. Source extraction and helper classification may still use OpenAI until migrated. Missing API keys, model failures, and source failures are hard errors, not occasions for local placeholder replies.
 - Imported Google Calendar events are trusted as commitments by default: medium priority, fixed in place, and editable from the event itself.
 
 ## Integration Direction

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { buildSchedulePromptPayloadForTest } from "../lib/ai/openai"
+import { buildSchedulePromptPayloadForTest } from "../lib/ai/claude"
 import type { SchedulePreparationContext } from "../types"
 
 const userId = "00000000-0000-4000-8000-000000000001"

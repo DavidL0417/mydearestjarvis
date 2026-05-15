@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { ensureDefaultSecretaryMemoryForUser } from "@/lib/assistant/default-memory"
-import { buildMemorySummaryMarkdown, deriveAvailabilityWindowsFromScheduleContext } from "@/lib/ai/openai"
+import { buildMemorySummaryMarkdown, deriveAvailabilityWindowsFromScheduleContext } from "@/lib/ai/claude"
 import {
   DAILY_PLAN_SELECT,
   mapMemoryItemRowToSummary,

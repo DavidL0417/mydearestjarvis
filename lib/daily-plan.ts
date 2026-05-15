@@ -1,4 +1,9 @@
-import { generateSchedule } from "@/lib/ai/openai"
+import { generateSchedule } from "@/lib/ai/claude"
+import {
+  DEFAULT_CLAUDE_PLANNER_MODEL_KEY,
+  getClaudePlannerModelOption,
+  type ClaudePlannerModelKey,
+} from "@/lib/ai/claude-models"
 import { loadLayeredSecretaryContext } from "@/lib/assistant/context"
 import {
   DAILY_PLAN_SELECT,
@@ -42,7 +47,7 @@ import type {
 type AdminClient = Awaited<ReturnType<typeof requireAuthenticatedUser>>["adminClient"]
 
 const HORIZON_DAYS = 7
-const DEFAULT_MODEL_NAME = process.env.OPENAI_MODEL || "gpt-4.1"
+const DEFAULT_MODEL_NAME = getClaudePlannerModelOption(DEFAULT_CLAUDE_PLANNER_MODEL_KEY).model
 
 function addDays(date: Date, days: number) {
   const next = new Date(date)
@@ -599,6 +604,7 @@ export async function buildDailyPlan(input: {
   userId: string
   hardEvents: ScheduleEventInput[]
   command?: string | null
+  plannerModel?: ClaudePlannerModelKey | null
 }): Promise<{ dailyPlan: DailyPlan; schedule: SchedulePlanResult; taskCount: number }> {
   const now = new Date()
   const horizonEnd = addDays(now, HORIZON_DAYS)
@@ -625,7 +631,11 @@ export async function buildDailyPlan(input: {
     ...sourceRefresh.items.map((item) => `${item.source}: ${item.status} - ${item.summary}`),
     ...layeredContext.recentChangeLogSummaries.slice(0, 5).map((summary) => `Recent schedule feedback: ${summary}`),
   ].filter((item): item is string => Boolean(item))
-  const schedule = await generateSchedule(loaded.context)
+  const plannerModel = input.plannerModel ?? DEFAULT_CLAUDE_PLANNER_MODEL_KEY
+  const schedule = await generateSchedule(loaded.context, {
+    modelKey: plannerModel,
+  })
+  const plannerModelName = getClaudePlannerModelOption(plannerModel).model
   const proposedEvents = schedule.proposedEvents
   const nowItem = deriveNowItem({
     tasks: loaded.context.tasks,
@@ -672,7 +682,7 @@ export async function buildDailyPlan(input: {
       tradeoffs,
       source_coverage: loaded.sourceCoverage,
       command,
-      model: DEFAULT_MODEL_NAME,
+      model: plannerModelName || DEFAULT_MODEL_NAME,
     })
     .select(DAILY_PLAN_SELECT)
     .single<DailyPlanRow>()

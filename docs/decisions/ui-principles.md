@@ -26,6 +26,7 @@
 - Source counts should represent distinct active source types, not historical refresh snapshots.
 - Candidate review should favor a compact deadline calendar grouping over a long checkbox-card list; undated items should stay compact and secondary.
 - On wide screens, the daily command strip belongs beside the schedule as a left command panel so it does not push the calendar down.
+- The Claude Sonnet/Opus planner choice belongs beside the daily planning controls as a compact segmented control, not in a modal or settings detour.
 - In the right rail, prefer spacing and muted surfaces for local grouping. Reserve strong rules for major region breaks so the panel does not become a stack of equal dividers.
 - Imported Google events default to medium priority and fixed in place. Do not expose the full backlog as a review queue; event-level changes belong on the calendar event context menu.
 

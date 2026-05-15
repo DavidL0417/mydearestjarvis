@@ -3,6 +3,7 @@
 
 import { z } from "zod"
 
+import { CLAUDE_PLANNER_MODEL_OPTIONS } from "@/lib/ai/claude-models"
 import {
   memoryEntrySummarySchema,
   prioritySchema,
@@ -13,9 +14,17 @@ import {
   userPreferencesSchema,
 } from "@/schemas/common"
 
+const claudePlannerModelKeys = CLAUDE_PLANNER_MODEL_OPTIONS.map((option) => option.key) as [
+  (typeof CLAUDE_PLANNER_MODEL_OPTIONS)[number]["key"],
+  ...(typeof CLAUDE_PLANNER_MODEL_OPTIONS)[number]["key"][],
+]
+
+export const claudePlannerModelSchema = z.enum(claudePlannerModelKeys)
+
 export const scheduleRequestSchema = z.object({
   taskIds: z.array(z.string().uuid()).optional().default([]),
   hardEvents: z.array(scheduleEventInputSchema).optional().default([]),
+  plannerModel: claudePlannerModelSchema.optional(),
 })
 
 export const schedulePreparationContextSchema = z.object({

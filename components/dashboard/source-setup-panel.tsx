@@ -7,7 +7,6 @@ import {
   BookOpen,
   CalendarDays,
   CheckCircle2,
-  CircleDashed,
   Database,
   FileUp,
   Github,
@@ -21,7 +20,6 @@ import {
 import type { LucideIcon } from "lucide-react"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Field,
@@ -206,30 +204,42 @@ function connectorStatusLabel(state: ConnectorState) {
   return state
 }
 
-function connectorStatusVariant(state: ConnectorState): "outline" | "secondary" | "destructive" {
+function connectorStatusDotTone(state: ConnectorState) {
   if (state === "connected" || state === "ready" || state === "manual") {
-    return "secondary"
+    return "bg-emerald-300/90 shadow-[0_0_6px_rgba(110,231,183,0.5)]"
   }
 
   if (state === "failed" || state === "missing_config" || state === "refresh_issue") {
-    return "destructive"
+    return "bg-destructive"
   }
 
-  return "outline"
+  if (state === "developing") {
+    return "border border-muted-foreground/40 bg-transparent"
+  }
+
+  return "bg-copper/85"
 }
 
-function ConnectorStatusBadge({ state }: { state: ConnectorState }) {
+function ConnectorStatusMark({
+  state,
+  className,
+}: {
+  state: ConnectorState
+  className?: string
+}) {
   return (
-    <Badge variant={connectorStatusVariant(state)} className="shrink-0 gap-1 rounded-sm">
-      {state === "connected" || state === "ready" || state === "manual" ? (
-        <CheckCircle2 className="h-3 w-3 text-emerald-300" aria-hidden="true" />
-      ) : state === "failed" || state === "missing_config" || state === "refresh_issue" ? (
-        <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-      ) : (
-        <CircleDashed className="h-3 w-3 text-copper" aria-hidden="true" />
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1.5 text-[10px] uppercase tracking-[0.12em] text-muted-foreground",
+        className,
       )}
+    >
+      <span
+        className={cn("inline-block h-1.5 w-1.5 shrink-0 rounded-full", connectorStatusDotTone(state))}
+        aria-hidden="true"
+      />
       {connectorStatusLabel(state)}
-    </Badge>
+    </span>
   )
 }
 
@@ -270,18 +280,28 @@ function ConnectorRow({
       type="button"
       onClick={onSelect}
       className={cn(
-        "flex w-full min-w-0 items-center gap-3 rounded-sm border px-3 py-3 text-left transition-colors",
-        active
-          ? "border-copper bg-copper-soft text-foreground"
-          : "border-rule bg-secondary/10 text-muted-foreground hover:border-rule-strong hover:bg-secondary/20 hover:text-foreground",
+        "group flex w-full min-w-0 items-center gap-3 border-b border-rule/70 py-2.5 pl-3 pr-2 text-left transition-colors",
+        active ? "bg-secondary/25" : "hover:bg-secondary/15",
       )}
+      aria-pressed={active}
     >
-      <Icon className="h-4 w-4 shrink-0 text-copper" aria-hidden="true" />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[13px] font-medium text-foreground">{connector.title}</span>
-        <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">{connector.summary}</span>
+      <Icon
+        className={cn(
+          "h-3.5 w-3.5 shrink-0 transition-colors",
+          active ? "text-copper" : "text-muted-foreground/70 group-hover:text-foreground/80",
+        )}
+        aria-hidden="true"
+        strokeWidth={1.75}
+      />
+      <span
+        className={cn(
+          "min-w-0 flex-1 truncate text-[13px] font-medium transition-colors",
+          active ? "text-foreground" : "text-foreground/85",
+        )}
+      >
+        {connector.title}
       </span>
-      <ConnectorStatusBadge state={state} />
+      <ConnectorStatusMark state={state} />
     </button>
   )
 }
@@ -294,8 +314,10 @@ function ConnectorGroup({
   children: ReactNode
 }) {
   return (
-    <div className="flex flex-col gap-2">
-      <h3 className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{title}</h3>
+    <div className="flex flex-col">
+      <h3 className="border-b border-rule/70 pb-2 pl-3 pt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">
+        {title}
+      </h3>
       {children}
     </div>
   )
@@ -355,17 +377,13 @@ function DetailHeader({
   const Icon = connector.icon
 
   return (
-    <div className="flex items-start justify-between gap-4 border-b border-rule pb-4">
-      <div className="flex min-w-0 items-center gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border border-rule bg-secondary/15">
-          <Icon className="h-4 w-4 text-copper" aria-hidden="true" />
-        </div>
-        <div className="min-w-0">
-          <h2 className="truncate text-[17px] font-semibold leading-none text-foreground">{connector.title}</h2>
-          <p className="mt-2 max-w-[64ch] text-[12px] leading-5 text-muted-foreground">{connector.summary}</p>
-        </div>
+    <div className="flex flex-col gap-2 border-b border-rule pb-4">
+      <div className="flex items-center gap-2.5">
+        <Icon className="h-4 w-4 shrink-0 text-copper" aria-hidden="true" strokeWidth={1.75} />
+        <h2 className="truncate text-[15px] font-semibold leading-none text-foreground">{connector.title}</h2>
+        <ConnectorStatusMark state={state} className="ml-auto" />
       </div>
-      <ConnectorStatusBadge state={state} />
+      <p className="max-w-[64ch] text-[12px] leading-5 text-muted-foreground">{connector.summary}</p>
     </div>
   )
 }
@@ -379,11 +397,28 @@ function InfoLine({ label, value }: { label: string; value: string | number | nu
   )
 }
 
-function StatTile({ label, value }: { label: string; value: string | number }) {
+function LedgerStrip({
+  items,
+}: {
+  items: Array<{ label: string; value: number; tone?: "default" | "alert" }>
+}) {
   return (
-    <div className="min-w-0 rounded-sm border border-rule bg-background px-3 py-2">
-      <span className="block truncate text-[10px] uppercase text-muted-foreground">{label}</span>
-      <span className="num mt-1 block text-[16px] font-semibold leading-none text-foreground">{value}</span>
+    <div className="flex min-w-0 items-stretch divide-x divide-rule/60 border-t border-rule/70 pt-3">
+      {items.map((item) => (
+        <div key={item.label} className="flex min-w-0 flex-1 items-baseline gap-2 px-3 first:pl-0 last:pr-0">
+          <span className="num text-[14px] font-semibold leading-none tabular-nums text-foreground">
+            {item.value}
+          </span>
+          <span
+            className={cn(
+              "truncate text-[10px] uppercase tracking-[0.12em] text-muted-foreground",
+              item.tone === "alert" && item.value > 0 && "text-destructive",
+            )}
+          >
+            {item.label}
+          </span>
+        </div>
+      ))}
     </div>
   )
 }
@@ -661,7 +696,7 @@ export function SourceSetupPanel({
               disabled={busy || gmailConfigMissing}
             />
           </div>
-          <div className="rounded-sm border border-rule px-3">
+          <div className="flex flex-col">
             <InfoLine label="Account" value={gmailConnector.account} />
             <InfoLine label="Status" value={connectorStatusLabel(state)} />
             <InfoLine label="Review items" value={pendingCount} />
@@ -720,22 +755,24 @@ export function SourceSetupPanel({
 
   return (
     <section className="grid min-h-[calc(100vh-6rem)] min-w-0 grid-cols-1 gap-0 overflow-hidden rounded-sm border border-rule md:grid-cols-[18rem_minmax(0,1fr)]">
-      <div className="flex min-w-0 flex-col gap-4 border-b border-rule bg-background px-3 py-3 md:border-b-0 md:border-r">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <Database className="h-4 w-4 shrink-0 text-copper" aria-hidden="true" />
-              <h2 className="truncate text-[13px] font-semibold uppercase text-foreground">Connectors</h2>
-            </div>
-            <p className="mt-1 text-[11px] leading-5 text-muted-foreground">Choose a source to configure.</p>
+      <div className="flex min-w-0 flex-col border-b border-rule bg-background md:border-b-0 md:border-r">
+        <header className="flex flex-col gap-2 border-b border-rule px-3 py-4">
+          <div className="flex items-center gap-2">
+            <Database className="h-4 w-4 shrink-0 text-copper" aria-hidden="true" strokeWidth={1.75} />
+            <h2 className="truncate text-[13px] font-semibold uppercase tracking-[0.08em] text-foreground">
+              Connectors
+            </h2>
+            {busy ? (
+              <span className="ml-auto inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin text-copper" aria-hidden="true" />
+                Working
+              </span>
+            ) : null}
           </div>
-          {busy ? (
-            <Badge variant="outline" className="shrink-0 gap-1 rounded-sm">
-              <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
-              Working
-            </Badge>
-          ) : null}
-        </div>
+          <p className="max-w-[40ch] text-[12px] leading-5 text-muted-foreground">
+            Choose a source to configure.
+          </p>
+        </header>
 
         <ConnectorGroup title="Configured">
           {CONNECTOR_DEFINITIONS.filter((connector) => connector.group === "configured").map((connector) => (
@@ -778,12 +815,14 @@ export function SourceSetupPanel({
         <div className="mx-auto flex w-full max-w-2xl flex-col gap-5">
           {renderDetail()}
           <InlineError message={errorMessage} />
-          <div className="grid grid-cols-4 gap-2">
-            <StatTile label="Snap" value={sources.length} />
-            <StatTile label="Files" value={sourceFiles.length} />
-            <StatTile label="Review" value={pendingCount} />
-            <StatTile label="Failed" value={failedSources.length} />
-          </div>
+          <LedgerStrip
+            items={[
+              { label: "Snapshots", value: sources.length },
+              { label: "Files", value: sourceFiles.length },
+              { label: "Review", value: pendingCount },
+              { label: "Failed", value: failedSources.length, tone: "alert" },
+            ]}
+          />
         </div>
       </div>
     </section>

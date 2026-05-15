@@ -8,7 +8,6 @@ import {
   Brain,
   CalendarDays,
   Database,
-  Inbox,
   Loader2,
   MessageSquare,
   PanelLeft,
@@ -28,13 +27,18 @@ import {
 import { ContextRailPanel } from "@/components/dashboard/context-rail-panel"
 import { DailyCommandStrip } from "@/components/dashboard/daily-command-strip"
 import { RailSheet } from "@/components/dashboard/rail-sheet"
-import { ReviewLedgerPanel } from "@/components/dashboard/review-ledger-panel"
+import { MemoryPanel } from "@/components/dashboard/memory-panel"
 import { SecretaryOverlay } from "@/components/dashboard/secretary-overlay"
 import { SourceSetupPanel } from "@/components/dashboard/source-setup-panel"
 import { TaskManager } from "@/components/dashboard/task-manager"
 import { Button } from "@/components/ui/button"
 import { Kbd } from "@/components/ui/kbd"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import {
+  DEFAULT_CLAUDE_PLANNER_MODEL_KEY,
+  isClaudePlannerModelKey,
+  type ClaudePlannerModelKey,
+} from "@/lib/ai/claude-models"
 import { cn } from "@/lib/utils"
 import type {
   CalendarListResponse,
@@ -55,6 +59,7 @@ const ScheduleView = dynamic(
 
 const DASHBOARD_REFRESH_EVENT = "jarvis-dashboard-refresh"
 const DEFAULT_TASK_CALENDAR_ID = "cal-tasks"
+const PLANNER_MODEL_STORAGE_KEY = "jarvis-planner-model"
 
 type DashboardViewState =
   | { status: "loading" }
@@ -244,10 +249,12 @@ export default function DashboardPage() {
   const [calendars, setCalendars] = useState<Calendar[]>([])
   const [calendarsSidebarOpen, setCalendarsSidebarOpen] = useState(false)
   const [sourcesSheetOpen, setSourcesSheetOpen] = useState(false)
-  const [inboxSheetOpen, setInboxSheetOpen] = useState(false)
+  const [memorySheetOpen, setMemorySheetOpen] = useState(false)
   const [secretaryOpen, setSecretaryOpen] = useState(false)
   const [plannerStatus, setPlannerStatus] = useState<PlannerUiStatus>("Idle")
   const [plannerSummary, setPlannerSummary] = useState("")
+  const [plannerModel, setPlannerModel] = useState<ClaudePlannerModelKey>(DEFAULT_CLAUDE_PLANNER_MODEL_KEY)
+  const [isPlannerModelHydrated, setIsPlannerModelHydrated] = useState(false)
   const [isScheduling, setIsScheduling] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [taskErrorMessage, setTaskErrorMessage] = useState("")
@@ -309,6 +316,24 @@ export default function DashboardPage() {
     window.addEventListener(DASHBOARD_REFRESH_EVENT, handleRefresh)
     return () => window.removeEventListener(DASHBOARD_REFRESH_EVENT, handleRefresh)
   }, [loadDashboard])
+
+  useEffect(() => {
+    const storedModel = window.localStorage.getItem(PLANNER_MODEL_STORAGE_KEY)
+
+    if (isClaudePlannerModelKey(storedModel)) {
+      setPlannerModel(storedModel)
+    }
+
+    setIsPlannerModelHydrated(true)
+  }, [])
+
+  useEffect(() => {
+    if (!isPlannerModelHydrated) {
+      return
+    }
+
+    window.localStorage.setItem(PLANNER_MODEL_STORAGE_KEY, plannerModel)
+  }, [isPlannerModelHydrated, plannerModel])
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
@@ -398,6 +423,7 @@ export default function DashboardPage() {
         body: JSON.stringify({
           command: command?.trim() || null,
           hardEvents: buildHardEventsForPlanning(taskIds),
+          plannerModel,
         }),
       })
 
@@ -461,6 +487,8 @@ export default function DashboardPage() {
               isPlanning={isScheduling}
               plannerStatus={plannerStatus}
               plannerSummary={plannerSummary}
+              plannerModel={plannerModel}
+              onPlannerModelChange={setPlannerModel}
               placement="side"
               onBuild={() => void handleDailyPlan()}
               onReplan={async (command) => {
@@ -502,7 +530,6 @@ export default function DashboardPage() {
   }
 
   const stats = dashboard?.stats
-  const pendingCandidates = dashboard?.sourceCandidates.filter((candidate) => candidate.status === "pending").length ?? 0
   const failedSources = dashboard?.sources.filter((source) => source.freshness === "failed").length ?? 0
 
   return (
@@ -525,11 +552,10 @@ export default function DashboardPage() {
               badgeTone="destructive"
             />
             <RailButton
-              label={pendingCandidates > 0 ? `Inbox · ${pendingCandidates} pending` : "Inbox"}
-              icon={Inbox}
-              onClick={() => setInboxSheetOpen(true)}
-              active={inboxSheetOpen}
-              badge={pendingCandidates > 0}
+              label={stats?.memories ? `Memory · ${stats.memories} notes` : "Memory"}
+              icon={Brain}
+              onClick={() => setMemorySheetOpen(true)}
+              active={memorySheetOpen}
             />
             <RailButton
               label="Refresh"
@@ -637,16 +663,15 @@ export default function DashboardPage() {
         </RailSheet>
 
         <RailSheet
-          isOpen={inboxSheetOpen}
-          onClose={() => setInboxSheetOpen(false)}
-          title="Inbox"
-          width={420}
+          isOpen={memorySheetOpen}
+          onClose={() => setMemorySheetOpen(false)}
+          title="Memory"
+          width={980}
         >
           {dashboard ? (
-            <ReviewLedgerPanel
-              candidates={dashboard.sourceCandidates}
-              sources={dashboard.sources}
-              onCandidatesChanged={() => loadDashboard(true)}
+            <MemoryPanel
+              memories={dashboard.memories}
+              onMemoriesChanged={() => loadDashboard(true)}
             />
           ) : null}
         </RailSheet>
