@@ -38,6 +38,7 @@ export type ExtractedSourceCandidate = {
   priority: Priority
   confidence: number | null
   evidence: string | null
+  allDay: boolean
 }
 
 export type SourceExtractionResult = {
@@ -121,16 +122,21 @@ function normalizeDueAt(value: string | null) {
 }
 
 function normalizeCandidate(candidate: z.infer<typeof extractedCandidateSchema>): ExtractedSourceCandidate {
+  const rawDue = candidate.dueAt
+  const dueAt = normalizeDueAt(rawDue)
+  const isDateOnly = Boolean(rawDue && /^\d{4}-\d{2}-\d{2}$/.test(rawDue.trim()))
+  const isMultiDay = (candidate.durationMinutes ?? 0) >= 1440
   return {
     kind: candidate.kind,
     title: candidate.title.trim(),
     description: candidate.description?.trim() || null,
     course: candidate.course?.trim() || null,
-    dueAt: normalizeDueAt(candidate.dueAt),
+    dueAt,
     durationMinutes: candidate.durationMinutes,
     priority: candidate.priority ?? "medium",
     confidence: candidate.confidence,
     evidence: candidate.evidence?.trim() || null,
+    allDay: isDateOnly || isMultiDay,
   }
 }
 

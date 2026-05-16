@@ -92,7 +92,7 @@ function findProperty(
   return Object.entries(properties).find(([name, property]) => predicate(name, property))?.[1] ?? null
 }
 
-function parseDueAt(page: NotionPageResult) {
+function parseDueAt(page: NotionPageResult): { dueAt: string | null; allDay: boolean } {
   const properties = page.properties || {}
   const namedDateProperty = findProperty(
     properties,
@@ -106,13 +106,23 @@ function parseDueAt(page: NotionPageResult) {
     Object.values(properties).find((property) => property.type === "date") ||
     null
   const value = fallbackDateProperty?.date?.start ?? null
+  const endValue = fallbackDateProperty?.date?.end ?? null
 
   if (!value) {
-    return null
+    return { dueAt: null, allDay: false }
   }
 
   const parsed = new Date(value)
-  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
+  if (Number.isNaN(parsed.getTime())) {
+    return { dueAt: null, allDay: false }
+  }
+
+  const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(value.trim())
+  const isMultiDay = Boolean(endValue && endValue !== value)
+  return {
+    dueAt: parsed.toISOString(),
+    allDay: isDateOnly || isMultiDay,
+  }
 }
 
 function parseCourse(page: NotionPageResult) {
@@ -228,9 +238,11 @@ function pagesToCandidates(pages: NotionPageResult[], databaseName: string | nul
       continue
     }
 
-    const dueAt = parseDueAt(page)
+    const { dueAt, allDay } = parseDueAt(page)
+    const durationMinutes = parseDurationMinutes(page)
     const properties = renderPageProperties(page)
     const sourceLabel = databaseName || "Notion tasks database"
+    const multiDayByDuration = (durationMinutes ?? 0) >= 1440
 
     candidates.push({
       kind: dueAt ? "deadline" : "task",
@@ -238,10 +250,11 @@ function pagesToCandidates(pages: NotionPageResult[], databaseName: string | nul
       description: properties || null,
       course: parseCourse(page),
       dueAt,
-      durationMinutes: parseDurationMinutes(page),
+      durationMinutes,
       priority: parsePriority(page),
       confidence: dueAt ? 0.95 : 0.75,
       evidence: `${sourceLabel}${page.url ? ` (${page.url})` : ""}`,
+      allDay: allDay || multiDayByDuration,
     })
   }
 

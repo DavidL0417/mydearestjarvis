@@ -93,6 +93,9 @@ function candidateKey(input: {
 }
 
 function candidateToTaskInsert(candidate: SourceCandidate, userId: string): TaskInsertRow {
+  const isMultiDay = (candidate.durationMinutes ?? 0) >= 1440
+  const isDateOnlyDeadline = candidate.kind === "deadline" && Boolean(candidate.dueAt && /T00:00:00\.000Z$/.test(candidate.dueAt))
+  const allDay = isMultiDay || isDateOnlyDeadline
   return {
     user_id: userId,
     title: candidate.title,
@@ -103,7 +106,7 @@ function candidateToTaskInsert(candidate: SourceCandidate, userId: string): Task
     status: candidate.kind === "event" && candidate.dueAt ? "scheduled" : "todo",
     scheduled_for: candidate.kind === "event" ? candidate.dueAt : null,
     is_immutable: candidate.kind === "event" && Boolean(candidate.dueAt),
-    all_day: false,
+    all_day: allDay,
     calendar_id: TASKS_CALENDAR_ID,
     tags: candidateTags(candidate),
     source_snapshot_id: candidate.sourceSnapshotId,
@@ -239,30 +242,27 @@ export async function insertSourceCandidates(input: {
     return []
   }
 
-  const titles = Array.from(new Set(input.candidates.map((candidate) => candidate.title.trim()).filter(Boolean)))
   const existingKeys = new Set<string>()
 
-  if (titles.length > 0) {
-    const { data: existingRows, error: existingError } = await input.adminClient
-      .from("source_candidates")
-      .select(SOURCE_CANDIDATE_SELECT)
-      .eq("user_id", input.userId)
-      .in("title", titles)
-      .neq("status", "dismissed")
-      .returns<SourceCandidateRow[]>()
+  const { data: existingRows, error: existingError } = await input.adminClient
+    .from("source_candidates")
+    .select(SOURCE_CANDIDATE_SELECT)
+    .eq("user_id", input.userId)
+    .neq("status", "dismissed")
+    .limit(2000)
+    .returns<SourceCandidateRow[]>()
 
-    if (existingError) {
-      throw new Error(existingError.message)
-    }
+  if (existingError) {
+    throw new Error(existingError.message)
+  }
 
-    for (const candidate of (existingRows || []).map(mapSourceCandidateRowToCandidate)) {
-      existingKeys.add(candidateKey({
-        kind: candidate.kind,
-        title: candidate.title,
-        dueAt: candidate.dueAt,
-        course: candidate.course,
-      }))
-    }
+  for (const candidate of (existingRows || []).map(mapSourceCandidateRowToCandidate)) {
+    existingKeys.add(candidateKey({
+      kind: candidate.kind,
+      title: candidate.title,
+      dueAt: candidate.dueAt,
+      course: candidate.course,
+    }))
   }
 
   const candidatesToInsert = input.candidates.filter((candidate) => {
