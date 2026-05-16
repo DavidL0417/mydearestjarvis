@@ -742,6 +742,24 @@ export function ScheduleView({
     return fallbackEventStyle(event.color)
   }
 
+  const getAllDayPillStyle = (event: CalendarEvent) => {
+    const calendar = calendars?.find((cal) => cal.id === event.calendarId)
+    if (calendar) {
+      const hex = calendar.color
+      return {
+        backgroundColor: `${hex}22`,
+        color: "oklch(0.88 0.01 80)",
+        borderLeft: `2px solid ${hex}80`,
+      }
+    }
+    const fallback = fallbackEventStyle(event.color)
+    return {
+      backgroundColor: fallback.backgroundColor.replace(/\/\s*0\.55\)/, "/ 0.22)"),
+      color: fallback.color,
+      borderLeft: `2px solid ${fallback.borderTop.replace(/^1px solid\s*/, "")}80`,
+    }
+  }
+
   const renderEventContextMenu = (event: CalendarEvent, trigger: ReactElement) => {
     if (!event.canEdit) {
       return trigger
@@ -1117,7 +1135,7 @@ export function ScheduleView({
                           event,
                           <div
                             className="overflow-hidden rounded-sm px-1.5 py-0.5 text-[10px] font-medium leading-tight"
-                            style={getEventColorStyle(event)}
+                            style={getAllDayPillStyle(event)}
                           >
                             <p className="truncate">{event.title}</p>
                           </div>,
