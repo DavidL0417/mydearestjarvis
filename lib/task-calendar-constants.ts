@@ -1,5 +1,12 @@
 import type { Task } from "@/types"
 
+export const EXCLUDED_SCHEDULE_EVENT_TITLES = new Set(["Office"])
+
+export function isExcludedScheduleEventTitle(title: string | null | undefined): boolean {
+  if (!title) return false
+  return EXCLUDED_SCHEDULE_EVENT_TITLES.has(title.trim())
+}
+
 export const TASKS_CALENDAR_ID = "cal-tasks"
 export const TASKS_CALENDAR_NAME = "Task Calendar"
 export const TASKS_CALENDAR_COLOR = "#f9a8d4"

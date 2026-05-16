@@ -10,6 +10,7 @@ import {
   Database,
   FileUp,
   Github,
+  GraduationCap,
   ListChecks,
   Loader2,
   Mail,
@@ -49,6 +50,7 @@ type ActionStatus = "idle" | "busy" | "error"
 type SourcePanelId =
   | "gmail"
   | "notion"
+  | "canvas"
   | "manual"
   | "todoist"
   | "google_tasks"
@@ -86,6 +88,13 @@ const CONNECTOR_DEFINITIONS: ConnectorDefinition[] = [
     group: "configured",
     icon: BookOpen,
     summary: "Import tasks from the authoritative Notion tasks database.",
+  },
+  {
+    id: "canvas",
+    title: "Canvas",
+    group: "configured",
+    icon: GraduationCap,
+    summary: "Import planner items from Canvas and sync completed planner items back.",
   },
   {
     id: "manual",
@@ -183,6 +192,8 @@ function getConnector(connectors: SourceConnector[], id: SourceConnectorId): Sou
     detail:
       id === "notion"
         ? "Authorize a Notion workspace before importing scheduling context."
+        : id === "canvas"
+          ? "Connect Canvas with a base URL and personal access token."
         : "Authorize Google with Gmail read-only access before scanning mail context.",
   }
 }
@@ -452,12 +463,17 @@ export function SourceSetupPanel({
 }) {
   const notionConnector = getConnector(sourceConnectors, "notion")
   const gmailConnector = getConnector(sourceConnectors, "gmail")
+  const canvasConnector = getConnector(sourceConnectors, "canvas")
   const gmailConfigMissing = gmailConnector.status === "missing_config"
   const [selectedId, setSelectedId] = useState<SourcePanelId>("gmail")
   const [pasteText, setPasteText] = useState("")
   const [notionDatabaseInput, setNotionDatabaseInput] = useState(notionConnector.selectedSourceId ?? "")
+  const [canvasBaseUrlInput, setCanvasBaseUrlInput] = useState(canvasConnector.selectedSourceId ?? "")
+  const [canvasTokenInput, setCanvasTokenInput] = useState("")
   const [status, setStatus] = useState<ActionStatus>("idle")
   const [errorMessage, setErrorMessage] = useState("")
+  const [dedupeStatus, setDedupeStatus] = useState<"idle" | "busy" | "done" | "error">("idle")
+  const [dedupeSummary, setDedupeSummary] = useState("")
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const pendingCount = sourceCandidates.filter((candidate) => candidate.status === "pending").length
   const failedSources = sources.filter((source) => source.freshness === "failed")
@@ -474,6 +490,10 @@ export function SourceSetupPanel({
   useEffect(() => {
     setNotionDatabaseInput(notionConnector.selectedSourceId ?? "")
   }, [notionConnector.selectedSourceId])
+
+  useEffect(() => {
+    setCanvasBaseUrlInput(canvasConnector.selectedSourceId ?? "")
+  }, [canvasConnector.selectedSourceId])
 
   function stateForConnector(connector: ConnectorDefinition): ConnectorState {
     if (connector.id === "manual") {
@@ -492,8 +512,16 @@ export function SourceSetupPanel({
       return "refresh_issue"
     }
 
+    if (connector.id === "canvas" && failedSourcesByKind.canvas?.length) {
+      return "refresh_issue"
+    }
+
     if (connector.id === "gmail") {
       return gmailConnector.status
+    }
+
+    if (connector.id === "canvas") {
+      return canvasConnector.status
     }
 
     return notionConnector.status
@@ -511,6 +539,35 @@ export function SourceSetupPanel({
       await onSourcesChanged().catch(() => undefined)
       setStatus("error")
       setErrorMessage(error instanceof Error ? error.message : "Source action failed.")
+    }
+  }
+
+  async function handleDedupe() {
+    setDedupeStatus("busy")
+    setDedupeSummary("")
+    try {
+      const response = await fetch("/api/sources/candidates/dedupe", { method: "POST" })
+      const payload = (await response.json().catch(() => null)) as
+        | { success?: true; removedCandidates?: number; removedTasks?: number; removedEvents?: number; details?: string }
+        | null
+
+      if (!response.ok || !payload?.success) {
+        throw new Error(payload?.details || "Dedupe failed.")
+      }
+
+      const c = payload.removedCandidates ?? 0
+      const t = payload.removedTasks ?? 0
+      const e = payload.removedEvents ?? 0
+      setDedupeSummary(
+        c === 0 && t === 0 && e === 0
+          ? "Nothing to dedupe."
+          : `Removed ${c} duplicate candidate${c === 1 ? "" : "s"}, ${t} task${t === 1 ? "" : "s"}, ${e} event${e === 1 ? "" : "s"}.`,
+      )
+      setDedupeStatus("done")
+      await onSourcesChanged()
+    } catch (error) {
+      setDedupeStatus("error")
+      setDedupeSummary(error instanceof Error ? error.message : "Dedupe failed.")
     }
   }
 
@@ -630,6 +687,41 @@ export function SourceSetupPanel({
     })
   }
 
+  async function handleCanvasConnect() {
+    const baseUrl = canvasBaseUrlInput.trim()
+    const accessToken = canvasTokenInput.trim()
+
+    if (!baseUrl || !accessToken) {
+      setErrorMessage("Enter the Canvas base URL and access token.")
+      setStatus("error")
+      return
+    }
+
+    await runAction(async () => {
+      const response = await fetch("/api/integrations/canvas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ baseUrl, accessToken }),
+      })
+
+      await readJson(response, "Canvas connection failed.")
+      setCanvasTokenInput("")
+    })
+  }
+
+  async function handleCanvasImport() {
+    await runAction(async () => {
+      const response = await fetch("/api/integrations/canvas/import", {
+        method: "POST",
+      })
+      const payload = (await response.json().catch(() => null)) as ActionPayload | null
+
+      if (!response.ok || !payload) {
+        throw new Error(getPayloadMessage(payload, "Canvas import failed."))
+      }
+    })
+  }
+
   function renderDetail() {
     const state = stateForConnector(selectedConnector)
 
@@ -700,6 +792,64 @@ export function SourceSetupPanel({
             <InfoLine label="Account" value={gmailConnector.account} />
             <InfoLine label="Status" value={connectorStatusLabel(state)} />
             <InfoLine label="Review items" value={pendingCount} />
+          </div>
+        </div>
+      )
+    }
+
+    if (selectedConnector.id === "canvas") {
+      return (
+        <div className="flex min-w-0 flex-col gap-5">
+          <DetailHeader connector={selectedConnector} state={state} />
+          <FailedSourceAlert sources={failedSourcesByKind.canvas ?? []} />
+          <div className="flex flex-wrap gap-2">
+            <ActionButton
+              icon={GraduationCap}
+              label={canvasConnector.status === "ready" || canvasConnector.status === "connected" ? "Update token" : "Connect Canvas"}
+              onClick={handleCanvasConnect}
+              disabled={busy || canvasBaseUrlInput.trim().length === 0 || canvasTokenInput.trim().length === 0}
+            />
+            <ActionButton
+              icon={RefreshCw}
+              label="Import Canvas"
+              onClick={handleCanvasImport}
+              disabled={busy || !canvasConnector.canRun}
+            />
+          </div>
+          <FieldGroup className="gap-3">
+            <Field className="gap-2">
+              <FieldLabel className="text-[12px]">Canvas URL</FieldLabel>
+              <InputGroup className="min-w-0 rounded-sm border-rule bg-secondary/20">
+                <InputGroupInput
+                  value={canvasBaseUrlInput}
+                  onChange={(event) => setCanvasBaseUrlInput(event.target.value)}
+                  placeholder="https://school.instructure.com"
+                  disabled={busy}
+                  className="min-w-0 text-[12px]"
+                />
+              </InputGroup>
+            </Field>
+            <Field className="gap-2">
+              <FieldLabel className="text-[12px]">Access Token</FieldLabel>
+              <InputGroup className="min-w-0 rounded-sm border-rule bg-secondary/20">
+                <InputGroupInput
+                  value={canvasTokenInput}
+                  onChange={(event) => setCanvasTokenInput(event.target.value)}
+                  placeholder="Paste token from Canvas settings"
+                  type="password"
+                  disabled={busy}
+                  className="min-w-0 text-[12px]"
+                />
+              </InputGroup>
+              <FieldDescription className="text-[11px]">
+                In Canvas, use Settings → New Access Token with purpose JARVIS Canvas pilot.
+              </FieldDescription>
+            </Field>
+          </FieldGroup>
+          <div className="rounded-sm border border-rule px-3">
+            <InfoLine label="Account" value={canvasConnector.account} />
+            <InfoLine label="Canvas host" value={canvasConnector.selectedSourceName} />
+            <InfoLine label="Status" value={connectorStatusLabel(state)} />
           </div>
         </div>
       )
@@ -823,6 +973,38 @@ export function SourceSetupPanel({
               { label: "Failed", value: failedSources.length, tone: "alert" },
             ]}
           />
+          <div className="flex flex-col gap-2 rounded-sm border border-rule bg-secondary/15 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[12px] font-medium text-foreground">Dedupe imports</p>
+                <p className="text-[11px] leading-4 text-muted-foreground">
+                  Collapse duplicate candidates and tasks that share kind, title, due date, and course. Keeps the
+                  oldest approved row.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => void handleDedupe()}
+                disabled={dedupeStatus === "busy"}
+                className="h-7 gap-1.5 rounded-sm px-2 text-[11px] font-medium"
+              >
+                {dedupeStatus === "busy" ? (
+                  <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+                ) : (
+                  <RefreshCw className="h-3 w-3" aria-hidden="true" />
+                )}
+                {dedupeStatus === "busy" ? "Dedupe-ing" : "Dedupe now"}
+              </Button>
+            </div>
+            {dedupeSummary ? (
+              <p
+                className={`text-[11px] leading-4 ${dedupeStatus === "error" ? "text-destructive" : "text-muted-foreground"}`}
+              >
+                {dedupeSummary}
+              </p>
+            ) : null}
+          </div>
         </div>
       </div>
     </section>

@@ -20,10 +20,15 @@ import {
   USER_INTEGRATION_SELECT,
 } from "@/lib/data/mappers"
 import { GMAIL_READONLY_SCOPE, hasOAuthScope } from "@/lib/google-oauth"
+import { isExcludedScheduleEventTitle } from "@/lib/task-calendar-constants"
 import {
   isAuthenticationRequiredError,
   requireAuthenticatedUser,
 } from "@/lib/supabase/auth"
+import {
+  getStoredCanvasIntegration,
+  type StoredCanvasIntegration,
+} from "@/lib/supabase/canvas-integration"
 import {
   getStoredGoogleIntegration,
   type StoredGoogleIntegration,
@@ -178,13 +183,20 @@ function deriveSourceConnectors(input: {
   sources: SourceSnapshotSummary[]
   googleIntegration: StoredGoogleIntegration | null
   notionToken: IntegrationTokenRow | null
+  canvasIntegration: StoredCanvasIntegration | null
 }): SourceConnector[] {
   const googleIntegration = getIntegration(input.integrations, "google")
   const notionIntegration = getIntegration(input.integrations, "notion")
+  const canvasPublicIntegration = getIntegration(input.integrations, "canvas")
   const gmailSource = getLatestSource(input.sources, "gmail")
   const notionSource = getLatestSource(input.sources, "notion")
+  const canvasSource = getLatestSource(input.sources, "canvas")
   const googleAccount = getIntegrationAccount(googleIntegration)
   const notionAccount = getIntegrationAccount(notionIntegration)
+  const canvasAccount =
+    input.canvasIntegration?.provider_account_email ||
+    input.canvasIntegration?.provider_user_id ||
+    getIntegrationAccount(canvasPublicIntegration)
   const missingGoogleEnv = getMissingEnv(["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"])
   const missingNotionEnv = getMissingEnv(["NOTION_CLIENT_ID", "NOTION_CLIENT_SECRET"])
   const sourceConnectors: SourceConnector[] = []
@@ -305,6 +317,40 @@ function deriveSourceConnectors(input: {
     })
   }
 
+  if (input.canvasIntegration?.status === "connected" && input.canvasIntegration.base_url && input.canvasIntegration.access_token) {
+    sourceConnectors.push({
+      id: "canvas",
+      status: canvasSource?.freshness === "failed" ? "failed" : "ready",
+      account: canvasAccount,
+      canRun: true,
+      detail: canvasSource?.freshness === "failed"
+        ? canvasSource.summary
+        : `${canvasAccount ? `${canvasAccount}. ` : ""}Ready to import Canvas planner items from ${input.canvasIntegration.base_name ?? input.canvasIntegration.base_url}.`,
+      selectedSourceId: input.canvasIntegration.base_url,
+      selectedSourceName: input.canvasIntegration.base_name,
+    })
+  } else if (input.canvasIntegration?.status === "needs_reauth" || input.canvasIntegration?.status === "error") {
+    sourceConnectors.push({
+      id: "canvas",
+      status: "auth_needed",
+      account: canvasAccount,
+      canRun: false,
+      detail: `${canvasAccount ? `${canvasAccount}. ` : ""}Reconnect Canvas with a fresh access token from Canvas settings.`,
+      selectedSourceId: input.canvasIntegration.base_url,
+      selectedSourceName: input.canvasIntegration.base_name,
+    })
+  } else {
+    sourceConnectors.push({
+      id: "canvas",
+      status: "auth_needed",
+      account: canvasAccount,
+      canRun: false,
+      detail: "Connect Canvas with a base URL and a personal access token from Settings > New Access Token.",
+      selectedSourceId: input.canvasIntegration?.base_url ?? null,
+      selectedSourceName: input.canvasIntegration?.base_name ?? null,
+    })
+  }
+
   return sourceConnectors
 }
 
@@ -323,6 +369,7 @@ export async function GET() {
       integrationResult,
       storedGoogleIntegration,
       storedNotionToken,
+      storedCanvasIntegration,
       dailyPlanResult,
     ] = await Promise.all([
       adminClient
@@ -368,6 +415,7 @@ export async function GET() {
         .order("updated_at", { ascending: false }),
       getStoredGoogleIntegration(user.id),
       getStoredIntegrationToken(user.id, "notion"),
+      getStoredCanvasIntegration(user.id),
       adminClient
         .from("daily_plans")
         .select(DAILY_PLAN_SELECT)
@@ -405,6 +453,7 @@ export async function GET() {
 
     const tasks = (tasksResult.data || []).map((row) => mapTaskRowToTask(row as TaskRow))
     const events = (eventsResult.data || [])
+      .filter((row) => !isExcludedScheduleEventTitle((row as ScheduleEventRow).title))
       .map((row) => mapScheduleEventRowToScheduleEvent(row as ScheduleEventRow))
       .sort((left, right) => new Date(left.start).getTime() - new Date(right.start).getTime())
     const memories = (memoryResult.data || []).map((row) => mapMemoryItemRowToSummary(row as MemoryItemRow))
@@ -424,6 +473,7 @@ export async function GET() {
       sources,
       googleIntegration: storedGoogleIntegration,
       notionToken: storedNotionToken,
+      canvasIntegration: storedCanvasIntegration,
     })
     const dailyPlan = dailyPlanResult.data ? mapDailyPlanRowToDailyPlan(dailyPlanResult.data) : null
     const scheduledTaskIds = new Set(

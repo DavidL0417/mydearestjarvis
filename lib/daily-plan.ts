@@ -24,7 +24,7 @@ import {
 } from "@/lib/data/mappers"
 import { refreshSourcesForUser } from "@/lib/sources/refresh"
 import type { requireAuthenticatedUser } from "@/lib/supabase/auth"
-import { TASKS_CALENDAR_ID } from "@/lib/task-calendar-constants"
+import { isExcludedScheduleEventTitle, TASKS_CALENDAR_ID } from "@/lib/task-calendar-constants"
 import type {
   DailyPlan,
   DailyPlanListItem,
@@ -427,6 +427,7 @@ async function loadScheduleContext(input: {
     .map((event) => mapScheduleEventInputToScheduleEvent(event, input.userId))
   const requestHardEventKeys = new Set(requestHardEvents.map(getEventIdentity))
   const persistedEvents = (eventsResult.data || [])
+    .filter((event) => !isExcludedScheduleEventTitle((event as { title: string | null }).title))
     .map((event) => mapScheduleEventRowToScheduleEvent(event as Parameters<typeof mapScheduleEventRowToScheduleEvent>[0]))
   const persistedHardEvents = persistedEvents
     .filter((event) => !event.taskId || !selectedTaskIds.has(event.taskId))

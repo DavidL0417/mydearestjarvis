@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { ensureDefaultSecretaryMemoryForUser } from "@/lib/assistant/default-memory"
 import { buildMemorySummaryMarkdown, deriveAvailabilityWindowsFromScheduleContext } from "@/lib/ai/claude"
+import { isExcludedScheduleEventTitle } from "@/lib/task-calendar-constants"
 import {
   DAILY_PLAN_SELECT,
   mapMemoryItemRowToSummary,
@@ -300,9 +301,9 @@ export async function loadAssistantRuntimeContext(
     ...mapPreferencesRowToPreferences(preferencesResult.data),
   }
   const tasks = (tasksResult.data || []).map((row) => mapTaskRowToTask(row as TaskRow))
-  const events = (eventsResult.data || []).map((row) =>
-    mapScheduleEventRowToScheduleEvent(row as ScheduleEventRow),
-  )
+  const events = (eventsResult.data || [])
+    .filter((row) => !isExcludedScheduleEventTitle((row as ScheduleEventRow).title))
+    .map((row) => mapScheduleEventRowToScheduleEvent(row as ScheduleEventRow))
   const memoryEntries = (memoryResult.data || []).map((row) =>
     mapMemoryItemRowToSummary(row as MemoryItemRow),
   )
