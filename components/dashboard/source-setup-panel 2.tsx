@@ -281,7 +281,7 @@ function SourceFailureAlert({ failedSources }: { failedSources: SourceSnapshotSu
           </CollapsibleTrigger>
           <CollapsibleContent className="flex min-w-0 flex-col gap-2">
             {failedSources.map((source) => (
-              <div key={source.id} className="min-w-0 rounded-sm border border-destructive/25 px-2.5 py-2">
+              <div key={source.id} className="min-w-0">
                 <div className="flex min-w-0 items-center justify-between gap-2">
                   <span className="min-w-0 truncate font-medium capitalize text-foreground">{sourceLabel(source.source)}</span>
                   <span className="num shrink-0 text-[10px] uppercase text-destructive/80">{formatCapturedAt(source.capturedAt)}</span>
