@@ -27,7 +27,7 @@
 ## Calendar Source Of Truth
 
 - `schedule_events` is the canonical app event store.
-- Imported Google events are mirrored into `schedule_events`.
+- Imported Google events are mirrored into `schedule_events`. A successful Google Calendar refresh reconciles that mirror against the provider window and removes imported Google rows that disappeared from Google, so deleted classes or unsubscribed calendars do not remain as fixed commitments.
 - Imported CalDAV events are mirrored into `schedule_events` as read-only calendar events with `last_synced_from = 'caldav'` and stable `external_event_id` values.
 - Connector enablement lives in `connector_settings`. A connected but disabled source keeps credentials and mirrored rows, but source refresh and planning must skip it intentionally instead of treating it as a failure.
 - JARVIS-created task/focus blocks are persisted first. Syncing task blocks outward to Google Calendar is an approval-backed assistant tool run, not part of normal calendar reads.

@@ -94,6 +94,7 @@ describe("source refresh gate", () => {
       refresh_token: null,
       expires_at: null,
       scope: GOOGLE_CALENDAR_READONLY_SCOPE,
+      token_updated_at: null,
     })
     vi.mocked(syncGoogleCalendarEventsForUser).mockResolvedValue({
       success: false,
@@ -173,6 +174,7 @@ describe("source refresh gate", () => {
       refresh_token: null,
       expires_at: null,
       scope: GOOGLE_CALENDAR_READONLY_SCOPE,
+      token_updated_at: null,
     })
     vi.mocked(getStoredCanvasIntegration).mockResolvedValue(null)
     vi.mocked(getStoredCalDavIntegration).mockResolvedValue(null)
