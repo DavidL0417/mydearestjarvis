@@ -51,6 +51,19 @@ create table public.canvas_extension_nodes (
   unique (user_id, canvas_origin, url)
 );
 
+create table public.canvas_extension_command_events (
+  id uuid primary key default gen_random_uuid(),
+  command_id uuid references public.canvas_extension_commands(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  level text not null default 'info' check (level in ('info', 'success', 'warning', 'error')),
+  phase text not null default 'status',
+  node_id uuid references public.canvas_extension_nodes(id) on delete set null,
+  message text not null,
+  details jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 alter table public.canvas_extension_sessions
   add constraint canvas_extension_sessions_active_command_id_fkey
   foreign key (active_command_id) references public.canvas_extension_commands(id) on delete set null;
@@ -67,10 +80,15 @@ create index canvas_extension_nodes_user_parent_idx
   on public.canvas_extension_nodes(user_id, parent_id, title);
 create index canvas_extension_nodes_user_selected_idx
   on public.canvas_extension_nodes(user_id, selected, imported_at);
+create index canvas_extension_command_events_command_created_idx
+  on public.canvas_extension_command_events(command_id, created_at desc);
+create index canvas_extension_command_events_user_created_idx
+  on public.canvas_extension_command_events(user_id, created_at desc);
 
 alter table public.canvas_extension_sessions enable row level security;
 alter table public.canvas_extension_commands enable row level security;
 alter table public.canvas_extension_nodes enable row level security;
+alter table public.canvas_extension_command_events enable row level security;
 
 create policy canvas_extension_sessions_select_own
   on public.canvas_extension_sessions for select to authenticated
@@ -95,6 +113,10 @@ create policy canvas_extension_nodes_update_own
   using ((select auth.uid()) = user_id)
   with check ((select auth.uid()) = user_id);
 
+create policy canvas_extension_command_events_select_own
+  on public.canvas_extension_command_events for select to authenticated
+  using ((select auth.uid()) = user_id);
+
 create trigger canvas_extension_sessions_set_updated_at
   before update on public.canvas_extension_sessions
   for each row execute function public.set_updated_at();
@@ -105,4 +127,8 @@ create trigger canvas_extension_commands_set_updated_at
 
 create trigger canvas_extension_nodes_set_updated_at
   before update on public.canvas_extension_nodes
+  for each row execute function public.set_updated_at();
+
+create trigger canvas_extension_command_events_set_updated_at
+  before update on public.canvas_extension_command_events
   for each row execute function public.set_updated_at();

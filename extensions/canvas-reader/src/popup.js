@@ -11,6 +11,7 @@ const statusSection = document.querySelector("#status-section")
 const statusPill = document.querySelector("#status-pill")
 const appUrlDisplay = document.querySelector("#app-url-display")
 const commandStatus = document.querySelector("#command-status")
+const lastError = document.querySelector("#last-error")
 const openControlButton = document.querySelector("#open-control-button")
 const pollButton = document.querySelector("#poll-button")
 const message = document.querySelector("#message")
@@ -60,6 +61,8 @@ async function loadStatus() {
   commandStatus.textContent = state?.lastCommand
     ? `Last command: ${state.lastCommand.type} · ${state.lastCommand.status}`
     : "Waiting for commands from JARVIS."
+  lastError.hidden = !state?.lastError
+  lastError.textContent = state?.lastError ? `Last error: ${state.lastError.message}` : ""
 }
 
 appUrlInput.addEventListener("input", () => {

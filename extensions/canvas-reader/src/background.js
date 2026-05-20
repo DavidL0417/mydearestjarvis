@@ -11,6 +11,7 @@ const STORAGE_KEYS = {
   appBaseUrl: "jarvisAppBaseUrl",
   extensionToken: "jarvisExtensionToken",
   lastCommand: "jarvisLastCommand",
+  lastError: "jarvisLastError",
 }
 
 const TAB_LOAD_TIMEOUT_MS = 25000
@@ -38,13 +39,25 @@ async function storageRemove(keys) {
 }
 
 async function setLastCommand(command, status = command.status, message = null) {
+  const nextCommand = {
+    ...command,
+    status,
+    result: message ? { ...(command.result || {}), message } : command.result,
+    updatedAt: new Date().toISOString(),
+  }
+
   await storageSet({
-    [STORAGE_KEYS.lastCommand]: {
-      ...command,
-      status,
-      result: message ? { ...(command.result || {}), message } : command.result,
-      updatedAt: new Date().toISOString(),
-    },
+    [STORAGE_KEYS.lastCommand]: nextCommand,
+    ...(status === "failed"
+      ? {
+          [STORAGE_KEYS.lastError]: {
+            commandId: command.id,
+            type: command.type,
+            message: message || "Canvas command failed.",
+            updatedAt: nextCommand.updatedAt,
+          },
+        }
+      : {}),
   })
 }
 
@@ -138,6 +151,15 @@ function courseIdFor(url) {
     return new URL(url).pathname.match(/^\/courses\/(\d+)(\/|$)/)?.[1] || null
   } catch {
     return null
+  }
+}
+
+function isCourseHomeUrl(url) {
+  try {
+    const parsed = new URL(url)
+    return !parsed.search && Boolean(parsed.pathname.match(/^\/courses\/\d+\/?$/))
+  } catch {
+    return false
   }
 }
 
@@ -247,7 +269,8 @@ function childNodesFromSnapshot(snapshot, parentNode) {
     if (!normalized || seen.has(normalized)) continue
     seen.add(normalized)
     if (!isAllowedCanvasUrl(normalized, origin)) continue
-    if (normalized === parentNode.url) continue
+    if (normalized === parentNode.url || normalized === actualUrlForNode(parentNode)) continue
+    if (isCourseHomeUrl(normalized)) continue
 
     children.push({
       parentId: parentNode.id,
@@ -289,15 +312,31 @@ async function executeDiscover(command, context) {
   await reportCommand(context.appBaseUrl, context.extensionToken, {
     commandId: command.id,
     status: "progress",
+    phase: "open_courses",
     message: "Opening Canvas All Courses.",
   })
 
   const snapshot = await navigateAndCollect(tab, `${origin}/courses`, scanId)
+
+  await reportCommand(context.appBaseUrl, context.extensionToken, {
+    commandId: command.id,
+    status: "progress",
+    phase: "collect_courses",
+    message: "Collecting course rows from All Courses.",
+    details: {
+      url: snapshot.url,
+      courseRowCount: snapshot.courseRows?.length || 0,
+      linkCount: snapshot.links?.length || 0,
+    },
+  })
+
   const nodes = courseNodesFromAllCourses(snapshot)
 
   await reportCommand(context.appBaseUrl, context.extensionToken, {
     commandId: command.id,
     status: "succeeded",
+    level: "success",
+    phase: "discover_complete",
     message: `Discovered ${nodes.length} Canvas course(s) from All Courses.`,
     nodes,
     result: { nodeCount: nodes.length, canvasOrigin: origin },
@@ -309,13 +348,40 @@ async function executeExpandNode(command, context) {
   if (!parentNode) throw new Error("Canvas node was not included with expand command.")
   const tab = await findCanvasTab(parentNode.canvasOrigin, context.appBaseUrl)
   if (!tab?.id) throw new Error("Open the matching Canvas site before expanding this node.")
+
+  await reportCommand(context.appBaseUrl, context.extensionToken, {
+    commandId: command.id,
+    status: "progress",
+    phase: parentNode.kind === "course" ? "open_course" : "open_tab",
+    nodeId: parentNode.id,
+    message: parentNode.kind === "course" ? `Opening course: ${parentNode.title}` : `Opening Canvas tab: ${parentNode.title}`,
+    details: { url: actualUrlForNode(parentNode) },
+  })
+
   const snapshot = await navigateNodeAndCollect(tab, parentNode, randomScanId())
+
+  await reportCommand(context.appBaseUrl, context.extensionToken, {
+    commandId: command.id,
+    status: "progress",
+    phase: parentNode.kind === "course" ? "collect_tabs" : "collect_items",
+    nodeId: parentNode.id,
+    message: parentNode.kind === "course" ? "Collecting course navigation tabs." : "Collecting Canvas items from the selected tab.",
+    details: {
+      url: snapshot.url,
+      courseNavLinkCount: snapshot.courseNavLinks?.length || 0,
+      pageItemLinkCount: snapshot.pageItemLinks?.length || 0,
+    },
+  })
+
   const nodes = childNodesFromSnapshot(snapshot, parentNode)
   const parentLevel = parentNode.kind === "course" ? "course" : parentNode.metadata?.level || "tab"
 
   await reportCommand(context.appBaseUrl, context.extensionToken, {
     commandId: command.id,
     status: "succeeded",
+    level: "success",
+    phase: parentLevel === "course" ? "tabs_complete" : "items_complete",
+    nodeId: parentNode.id,
     message: parentLevel === "course" ? `Scraped ${nodes.length} Canvas tab(s).` : `Scraped ${nodes.length} item(s).`,
     nodes,
     result: { nodeCount: nodes.length, expandedNodeId: parentNode.id, expandedLevel: parentLevel },
@@ -367,8 +433,11 @@ async function executeImportSelected(command, context) {
     const progress = await reportCommand(context.appBaseUrl, context.extensionToken, {
       commandId: command.id,
       status: "progress",
+      phase: "import",
+      nodeId: node.id,
       message: `Importing ${index + 1}/${nodes.length}: ${node.title}`,
       result: { currentNodeId: node.id, importedCount: importedNodes.length, totalCount: nodes.length },
+      details: { current: index + 1, total: nodes.length, kind: node.kind, url: node.url },
     })
 
     if (progress.cancelRequested) {
@@ -402,6 +471,15 @@ async function executeImportSelected(command, context) {
 
       if (looksLikeActiveAssessment({ url: snapshot.url, title: snapshot.title, text: snapshot.visibleText })) {
         ledger.push({ url: node.url, status: "skipped", reason: "Active quiz or timed assessment surface.", candidateCount: 0 })
+        await reportCommand(context.appBaseUrl, context.extensionToken, {
+          commandId: command.id,
+          status: "progress",
+          level: "warning",
+          phase: "import_skip",
+          nodeId: node.id,
+          message: `Skipped active assessment surface: ${node.title}`,
+          details: { url: snapshot.url },
+        })
         continue
       }
 
@@ -413,12 +491,31 @@ async function executeImportSelected(command, context) {
         importedAt: new Date().toISOString(),
       })
       ledger.push(result.ledgerItem)
+      await reportCommand(context.appBaseUrl, context.extensionToken, {
+        commandId: command.id,
+        status: "progress",
+        level: "success",
+        phase: "imported",
+        nodeId: node.id,
+        message: `Imported ${node.title}.`,
+        details: result.ledgerItem,
+      })
     } catch (error) {
+      const reason = error instanceof Error ? error.message : "Unknown Canvas import failure."
       ledger.push({
         url: node.url,
         status: "failed",
-        reason: error instanceof Error ? error.message : "Unknown Canvas import failure.",
+        reason,
         candidateCount: 0,
+      })
+      await reportCommand(context.appBaseUrl, context.extensionToken, {
+        commandId: command.id,
+        status: "progress",
+        level: "error",
+        phase: "import",
+        nodeId: node.id,
+        message: `Failed to import ${node.title}: ${reason}`,
+        details: { url: node.url, reason },
       })
     }
   }
@@ -426,6 +523,8 @@ async function executeImportSelected(command, context) {
   await reportCommand(context.appBaseUrl, context.extensionToken, {
     commandId: command.id,
     status: "succeeded",
+    level: "success",
+    phase: "import_complete",
     message: `Imported ${importedNodes.length} Canvas node(s).`,
     importedNodes,
     result: { importedCount: importedNodes.length, totalCount: nodes.length, ledger },
@@ -483,6 +582,8 @@ async function pollForCommand() {
       await reportCommand(appBaseUrl, extensionToken, {
         commandId: response.command.id,
         status: "failed",
+        level: "error",
+        phase: "failed",
         message,
       })
       await setLastCommand(response.command, "failed", message)
@@ -556,12 +657,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       return { success: true }
     }
 
-    const state = await storageGet([STORAGE_KEYS.appBaseUrl, STORAGE_KEYS.extensionToken, STORAGE_KEYS.lastCommand])
+    const state = await storageGet([STORAGE_KEYS.appBaseUrl, STORAGE_KEYS.extensionToken, STORAGE_KEYS.lastCommand, STORAGE_KEYS.lastError])
     return {
       success: true,
       paired: Boolean(state[STORAGE_KEYS.appBaseUrl] && state[STORAGE_KEYS.extensionToken]),
       appBaseUrl: state[STORAGE_KEYS.appBaseUrl] || null,
       lastCommand: state[STORAGE_KEYS.lastCommand] || null,
+      lastError: state[STORAGE_KEYS.lastError] || null,
       busy: Boolean(activeCommandPromise),
     }
   })()
@@ -585,12 +687,13 @@ chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) =>
       return { success: true }
     }
 
-    const state = await storageGet([STORAGE_KEYS.appBaseUrl, STORAGE_KEYS.extensionToken, STORAGE_KEYS.lastCommand])
+    const state = await storageGet([STORAGE_KEYS.appBaseUrl, STORAGE_KEYS.extensionToken, STORAGE_KEYS.lastCommand, STORAGE_KEYS.lastError])
     return {
       success: true,
       paired: Boolean(state[STORAGE_KEYS.appBaseUrl] && state[STORAGE_KEYS.extensionToken]),
       appBaseUrl: state[STORAGE_KEYS.appBaseUrl] || null,
       lastCommand: state[STORAGE_KEYS.lastCommand] || null,
+      lastError: state[STORAGE_KEYS.lastError] || null,
       busy: Boolean(activeCommandPromise),
     }
   })()

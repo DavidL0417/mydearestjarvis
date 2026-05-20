@@ -113,6 +113,14 @@ button:disabled {
   min-height: 18px;
 }
 
+#last-error {
+  border: 1px solid rgba(239, 82, 74, 0.42);
+  color: #ef756f;
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 8px;
+}
+
 #targets {
   border: 1px solid rgba(255, 255, 255, 0.12);
   display: grid;
@@ -158,11 +166,11 @@ button:disabled {
 }
 
 #ledger li {
-  border-left: 2px solid rgba(224, 177, 95, 0.8);
+  border: 1px solid rgba(224, 177, 95, 0.32);
   color: rgba(245, 240, 232, 0.74);
   font-size: 11px;
   line-height: 1.35;
-  padding-left: 8px;
+  padding: 8px;
 }
 
 #version {

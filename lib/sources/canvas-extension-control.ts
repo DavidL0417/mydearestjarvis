@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type {
   CanvasExtensionCommand,
+  CanvasExtensionCommandEvent,
   CanvasExtensionNode,
   CanvasExtensionSession,
 } from "@/schemas/canvas-extension"
@@ -12,6 +13,8 @@ export const CANVAS_EXTENSION_COMMAND_SELECT =
   "id, type, status, target_node_id, payload, result, error_message, started_at, completed_at, created_at, updated_at"
 export const CANVAS_EXTENSION_NODE_SELECT =
   "id, parent_id, canvas_origin, url, title, kind, text_preview, metadata, selected, expanded, imported_at, source_snapshot_id, source_file_id, discovered_at"
+export const CANVAS_EXTENSION_COMMAND_EVENT_SELECT =
+  "id, command_id, user_id, level, phase, node_id, message, details, created_at"
 
 type AdminClient = SupabaseClient
 
@@ -57,6 +60,20 @@ interface CanvasExtensionNodeRow {
   discovered_at: string
 }
 
+type ExistingCanvasExtensionNodeRow = Pick<CanvasExtensionNodeRow, "url" | "selected" | "expanded" | "imported_at" | "source_snapshot_id" | "source_file_id">
+
+interface CanvasExtensionCommandEventRow {
+  id: string
+  command_id: string | null
+  user_id: string
+  level: CanvasExtensionCommandEvent["level"]
+  phase: string
+  node_id: string | null
+  message: string
+  details: Record<string, unknown>
+  created_at: string
+}
+
 export interface CanvasExtensionWorkerNodeInput {
   parentId?: string | null
   parentUrl?: string | null
@@ -84,6 +101,20 @@ export function canvasExtensionNodeLevel(node: Pick<CanvasExtensionNode, "kind" 
   if (level === "course" || level === "tab" || level === "item") return level
   if (node.kind === "course") return "course"
   return node.parentId ? "item" : "tab"
+}
+
+export function canvasExtensionCourseIdFromUrl(value: string) {
+  try {
+    const url = new URL(value)
+    if (url.search) return null
+    return url.pathname.match(/^\/courses\/(\d+)\/?$/)?.[1] ?? null
+  } catch {
+    return null
+  }
+}
+
+export function isNestedCanvasCourseHomeNode(node: Pick<CanvasExtensionWorkerNodeInput, "parentId" | "parentUrl" | "url">) {
+  return Boolean((node.parentId || node.parentUrl) && canvasExtensionCourseIdFromUrl(node.url))
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -138,17 +169,80 @@ export function mapCanvasExtensionNode(row: CanvasExtensionNodeRow): CanvasExten
   }
 }
 
+export function mapCanvasExtensionCommandEvent(row: CanvasExtensionCommandEventRow): CanvasExtensionCommandEvent {
+  return {
+    id: row.id,
+    commandId: row.command_id,
+    userId: row.user_id,
+    level: row.level,
+    phase: row.phase,
+    nodeId: row.node_id,
+    message: row.message,
+    details: asRecord(row.details),
+    createdAt: row.created_at,
+  }
+}
+
+export async function recordCanvasExtensionCommandEvent(input: {
+  adminClient: AdminClient
+  userId: string
+  commandId?: string | null
+  level?: CanvasExtensionCommandEvent["level"]
+  phase?: string | null
+  nodeId?: string | null
+  message: string
+  details?: Record<string, unknown>
+}) {
+  const { data, error } = await input.adminClient
+    .from("canvas_extension_command_events")
+    .insert({
+      command_id: input.commandId ?? null,
+      user_id: input.userId,
+      level: input.level ?? "info",
+      phase: input.phase || "status",
+      node_id: input.nodeId ?? null,
+      message: input.message,
+      details: input.details ?? {},
+    })
+    .select(CANVAS_EXTENSION_COMMAND_EVENT_SELECT)
+    .single()
+    .returns<CanvasExtensionCommandEventRow>()
+
+  if (error || !data) {
+    throw new Error(error?.message ?? "Failed to record Canvas extension command event.")
+  }
+
+  return mapCanvasExtensionCommandEvent(data)
+}
+
 export async function upsertCanvasExtensionNodes(input: {
   adminClient: AdminClient
   userId: string
   nodes: CanvasExtensionWorkerNodeInput[]
 }) {
-  if (input.nodes.length === 0) {
+  const safeNodes = input.nodes.filter((node) => !isNestedCanvasCourseHomeNode(node))
+
+  if (safeNodes.length === 0) {
     return []
   }
 
-  const uniqueNodes = Array.from(new Map(input.nodes.map((node) => [`${node.canvasOrigin}|${node.url}`, node])).values())
+  const uniqueNodes = Array.from(new Map(safeNodes.map((node) => [`${node.canvasOrigin}|${node.url}`, node])).values())
   const upserted: CanvasExtensionNodeRow[] = []
+  const existingUrls = uniqueNodes.map((node) => node.url)
+  const existingResult = existingUrls.length > 0
+    ? await input.adminClient
+        .from("canvas_extension_nodes")
+        .select("url, selected, expanded, imported_at, source_snapshot_id, source_file_id")
+        .eq("user_id", input.userId)
+        .in("url", existingUrls)
+        .returns<ExistingCanvasExtensionNodeRow[]>()
+    : { data: [], error: null }
+
+  if (existingResult.error) {
+    throw new Error(existingResult.error.message)
+  }
+
+  const existingByUrl = new Map((existingResult.data || []).map((row) => [row.url, row]))
 
   for (const pass of [false, true]) {
     const passNodes = uniqueNodes.filter((node) => pass ? Boolean(node.parentUrl || node.parentId) : !node.parentUrl && !node.parentId)
@@ -170,19 +264,26 @@ export async function upsertCanvasExtensionNodes(input: {
     }
 
     const parentIdsByUrl = new Map((parentRows.data || []).map((row: { id: string; url: string }) => [row.url, row.id]))
-    const rows = passNodes.map((node) => ({
-      user_id: input.userId,
-      parent_id: node.parentId ?? (node.parentUrl ? parentIdsByUrl.get(node.parentUrl) ?? null : null),
-      canvas_origin: new URL(node.canvasOrigin).origin,
-      url: node.url,
-      title: node.title,
-      kind: node.kind,
-      text_preview: node.textPreview ?? null,
-      metadata: node.metadata ?? {},
-      selected: node.selected ?? false,
-      expanded: node.expanded ?? false,
-      updated_at: new Date().toISOString(),
-    }))
+    const rows = passNodes.map((node) => {
+      const existing = existingByUrl.get(node.url)
+
+      return {
+        user_id: input.userId,
+        parent_id: node.parentId ?? (node.parentUrl ? parentIdsByUrl.get(node.parentUrl) ?? null : null),
+        canvas_origin: new URL(node.canvasOrigin).origin,
+        url: node.url,
+        title: node.title,
+        kind: node.kind,
+        text_preview: node.textPreview ?? null,
+        metadata: node.metadata ?? {},
+        selected: existing?.selected || node.selected || false,
+        expanded: existing?.expanded || node.expanded || false,
+        imported_at: existing?.imported_at ?? null,
+        source_snapshot_id: existing?.source_snapshot_id ?? null,
+        source_file_id: existing?.source_file_id ?? null,
+        updated_at: new Date().toISOString(),
+      }
+    })
 
     const { data, error } = await input.adminClient
       .from("canvas_extension_nodes")

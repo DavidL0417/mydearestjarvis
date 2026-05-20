@@ -2,11 +2,15 @@ import { describe, expect, it } from "vitest"
 
 import {
   isCanvasExtensionImportSelectableNode,
+  isNestedCanvasCourseHomeNode,
   isCanvasExtensionVisibleNode,
 } from "@/lib/sources/canvas-extension-control"
+import { classifySupabaseAuthError } from "@/lib/supabase/auth"
 import {
+  canvasExtensionCommandEventSchema,
   canvasExtensionPageSnapshotSchema,
   canvasExtensionCreateCommandRequestSchema,
+  canvasExtensionStateResponseSchema,
   canvasExtensionWorkerReportRequestSchema,
 } from "@/schemas/canvas-extension"
 
@@ -29,7 +33,11 @@ describe("Canvas extension control-plane schemas", () => {
     const parsed = canvasExtensionWorkerReportRequestSchema.parse({
       commandId: "11111111-1111-4111-8111-111111111111",
       status: "progress",
+      level: "info",
+      phase: "collect_items",
+      nodeId: "22222222-2222-4222-8222-222222222222",
       message: "Expanded Modules.",
+      details: { linkCount: 4 },
       nodes: [
         {
           parentId: "22222222-2222-4222-8222-222222222222",
@@ -42,6 +50,49 @@ describe("Canvas extension control-plane schemas", () => {
     })
 
     expect(parsed.nodes?.[0].kind).toBe("module")
+    expect(parsed.phase).toBe("collect_items")
+  })
+
+  it("accepts command events and derived state health", () => {
+    const event = canvasExtensionCommandEventSchema.parse({
+      id: "33333333-3333-4333-8333-333333333333",
+      commandId: "11111111-1111-4111-8111-111111111111",
+      userId: "44444444-4444-4444-8444-444444444444",
+      level: "info",
+      phase: "open_courses",
+      nodeId: null,
+      message: "Opening Canvas All Courses.",
+      details: {},
+      createdAt: "2026-05-19T18:00:00.000Z",
+    })
+
+    const parsed = canvasExtensionStateResponseSchema.parse({
+      success: true,
+      health: {
+        authStatus: "signed_in",
+        extensionStatus: "connected",
+        activeCommand: null,
+        lastEvent: event,
+        recoverableActions: ["retry_state", "wake_extension"],
+      },
+      session: null,
+      commands: [],
+      nodes: [],
+      events: [event],
+    })
+
+    expect(parsed.health.lastEvent?.phase).toBe("open_courses")
+    expect(parsed.events).toHaveLength(1)
+  })
+
+  it("classifies Supabase auth connect timeouts as backend timeouts, not signed-out auth", () => {
+    const timeoutError = Object.assign(new Error("fetch failed"), {
+      cause: Object.assign(new Error("Connect Timeout Error"), { code: "UND_ERR_CONNECT_TIMEOUT" }),
+    })
+
+    expect(classifySupabaseAuthError(timeoutError)).toBe("backend_timeout")
+    expect(classifySupabaseAuthError({ status: 401, message: "JWT invalid" })).toBe("auth_required")
+    expect(classifySupabaseAuthError({ name: "AuthSessionMissingError", message: "Auth session missing!" })).toBe("auth_required")
   })
 
   it("accepts page snapshots with Canvas course navigation links", () => {
@@ -101,5 +152,31 @@ describe("Canvas extension control-plane schemas", () => {
       selected: true,
       importedAt: null,
     })).toBe(true)
+  })
+
+  it("rejects nested Canvas course-home links before they can overwrite root courses", () => {
+    expect(isNestedCanvasCourseHomeNode({
+      parentId: "22222222-2222-4222-8222-222222222222",
+      parentUrl: null,
+      url: "https://canvas.example.edu/courses/42",
+    })).toBe(true)
+
+    expect(isNestedCanvasCourseHomeNode({
+      parentId: null,
+      parentUrl: null,
+      url: "https://canvas.example.edu/courses/42",
+    })).toBe(false)
+
+    expect(isNestedCanvasCourseHomeNode({
+      parentId: "22222222-2222-4222-8222-222222222222",
+      parentUrl: null,
+      url: "https://canvas.example.edu/courses/42/assignments",
+    })).toBe(false)
+
+    expect(isNestedCanvasCourseHomeNode({
+      parentId: "22222222-2222-4222-8222-222222222222",
+      parentUrl: null,
+      url: "https://canvas.example.edu/courses/42?view=feed",
+    })).toBe(false)
   })
 })

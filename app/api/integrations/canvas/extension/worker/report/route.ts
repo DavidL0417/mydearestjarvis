@@ -5,6 +5,7 @@ import {
   deleteCanvasExtensionChildren,
   deleteCanvasExtensionRootNonCourseNodes,
   mapCanvasExtensionCommand,
+  recordCanvasExtensionCommandEvent,
   upsertCanvasExtensionNodes,
 } from "@/lib/sources/canvas-extension-control"
 import { requireCanvasExtensionToken } from "@/lib/supabase/canvas-extension-auth"
@@ -46,6 +47,19 @@ export async function POST(request: Request) {
 
     if (!commandResult.data) {
       return NextResponse.json({ error: "Canvas extension command not found." }, { status: 404 })
+    }
+
+    if (report.message) {
+      await recordCanvasExtensionCommandEvent({
+        adminClient,
+        userId: tokenRecord.user_id,
+        commandId: report.commandId,
+        level: report.level ?? (report.status === "failed" ? "error" : report.status === "succeeded" ? "success" : "info"),
+        phase: report.phase ?? (report.status === "succeeded" ? "complete" : report.status === "failed" ? "failed" : "status"),
+        nodeId: report.nodeId ?? null,
+        message: report.message,
+        details: report.details ?? report.result ?? {},
+      })
     }
 
     if (commandResult.data.target_node_id && report.status === "succeeded") {

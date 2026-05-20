@@ -6,6 +6,7 @@ import {
   isCanvasExtensionImportSelectableNode,
   mapCanvasExtensionCommand,
   mapCanvasExtensionNode,
+  recordCanvasExtensionCommandEvent,
 } from "@/lib/sources/canvas-extension-control"
 import {
   isAuthenticationRequiredError,
@@ -30,18 +31,83 @@ async function selectedImportNodeIds(adminClient: Awaited<ReturnType<typeof requ
 }
 
 async function stopActiveCommand(adminClient: Awaited<ReturnType<typeof requireAuthenticatedUser>>["adminClient"], userId: string) {
+  const now = new Date().toISOString()
+  const pendingResult = await adminClient
+    .from("canvas_extension_commands")
+    .update({
+      status: "cancelled",
+      result: { message: "Queued command cancelled from JARVIS." },
+      completed_at: now,
+      updated_at: now,
+    })
+    .eq("user_id", userId)
+    .eq("status", "pending")
+    .select(CANVAS_EXTENSION_COMMAND_SELECT)
+
+  if (pendingResult.error) {
+    throw new Error(pendingResult.error.message)
+  }
+
+  const runningResult = await adminClient
+    .from("canvas_extension_commands")
+    .update({ status: "cancel_requested", updated_at: now })
+    .eq("user_id", userId)
+    .eq("status", "running")
+    .select(CANVAS_EXTENSION_COMMAND_SELECT)
+
+  if (runningResult.error) {
+    throw new Error(runningResult.error.message)
+  }
+
+  return [...(pendingResult.data || []), ...(runningResult.data || [])].map(mapCanvasExtensionCommand)
+}
+
+async function cancelPendingCommands(adminClient: Awaited<ReturnType<typeof requireAuthenticatedUser>>["adminClient"], userId: string) {
+  const now = new Date().toISOString()
   const { data, error } = await adminClient
     .from("canvas_extension_commands")
-    .update({ status: "cancel_requested", updated_at: new Date().toISOString() })
+    .update({
+      status: "cancelled",
+      result: { message: "Superseded by a newer Canvas command." },
+      completed_at: now,
+      updated_at: now,
+    })
     .eq("user_id", userId)
-    .in("status", ["pending", "running"])
+    .eq("status", "pending")
     .select(CANVAS_EXTENSION_COMMAND_SELECT)
 
   if (error) {
     throw new Error(error.message)
   }
 
-  return (data || []).map(mapCanvasExtensionCommand)
+  const commands = (data || []).map(mapCanvasExtensionCommand)
+  await Promise.all(commands.map((command) => recordCanvasExtensionCommandEvent({
+    adminClient,
+    userId,
+    commandId: command.id,
+    level: "warning",
+    phase: "superseded",
+    message: "Queued Canvas command superseded by a newer command.",
+  })))
+
+  return commands
+}
+
+async function runningCommand(adminClient: Awaited<ReturnType<typeof requireAuthenticatedUser>>["adminClient"], userId: string) {
+  const { data, error } = await adminClient
+    .from("canvas_extension_commands")
+    .select(CANVAS_EXTENSION_COMMAND_SELECT)
+    .eq("user_id", userId)
+    .in("status", ["running", "cancel_requested"])
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data ? mapCanvasExtensionCommand(data) : null
 }
 
 export async function POST(request: Request) {
@@ -64,6 +130,14 @@ export async function POST(request: Request) {
 
     if (requestData.type === "stop") {
       const commands = await stopActiveCommand(adminClient, user.id)
+      await Promise.all(commands.map((command) => recordCanvasExtensionCommandEvent({
+        adminClient,
+        userId: user.id,
+        commandId: command.id,
+        level: "warning",
+        phase: "stop",
+        message: "Stop requested from JARVIS.",
+      })))
       return NextResponse.json({ success: true, commands })
     }
 
@@ -101,6 +175,16 @@ export async function POST(request: Request) {
       }
     }
 
+    const active = await runningCommand(adminClient, user.id)
+    if (active) {
+      return NextResponse.json(
+        { error: "Canvas Reader is already running a command. Stop it before starting a new one." },
+        { status: 409 },
+      )
+    }
+
+    await cancelPendingCommands(adminClient, user.id)
+
     const { data, error } = await adminClient
       .from("canvas_extension_commands")
       .insert({
@@ -116,7 +200,26 @@ export async function POST(request: Request) {
       throw new Error(error?.message ?? "Failed to create Canvas extension command.")
     }
 
-    return NextResponse.json({ success: true, command: mapCanvasExtensionCommand(data) })
+    const command = mapCanvasExtensionCommand(data)
+    await recordCanvasExtensionCommandEvent({
+      adminClient,
+      userId: user.id,
+      commandId: command.id,
+      phase: command.type === "discover"
+        ? "discover"
+        : command.type === "expand_node"
+          ? "expand"
+          : "import",
+      nodeId: requestData.targetNodeId ?? null,
+      message: command.type === "discover"
+        ? "Queued course discovery from Canvas All Courses."
+        : command.type === "expand_node"
+          ? "Queued Canvas node expansion."
+          : `Queued import for ${nodeIds.length} selected Canvas node${nodeIds.length === 1 ? "" : "s"}.`,
+      details: { nodeIds },
+    })
+
+    return NextResponse.json({ success: true, command })
   } catch (error) {
     if (isAuthenticationRequiredError(error)) {
       return NextResponse.json({ error: "Authentication required." }, { status: 401 })

@@ -5,6 +5,7 @@ import {
   CANVAS_EXTENSION_NODE_SELECT,
   mapCanvasExtensionCommand,
   mapCanvasExtensionNode,
+  recordCanvasExtensionCommandEvent,
 } from "@/lib/sources/canvas-extension-control"
 import { requireCanvasExtensionToken } from "@/lib/supabase/canvas-extension-auth"
 import { canvasExtensionWorkerPollRequestSchema } from "@/schemas/canvas-extension"
@@ -131,6 +132,19 @@ export async function POST(request: Request) {
           .from("canvas_extension_sessions")
           .update({ active_command_id: commandRow.id })
           .eq("user_id", tokenRecord.user_id)
+
+        await recordCanvasExtensionCommandEvent({
+          adminClient,
+          userId: tokenRecord.user_id,
+          commandId: commandRow.id,
+          phase: "claimed",
+          message: "Canvas Reader claimed the queued command.",
+          details: {
+            canvasOrigin,
+            activeUrl: poll.activeUrl ?? null,
+            extensionVersion: poll.extensionVersion ?? null,
+          },
+        })
       }
     }
 

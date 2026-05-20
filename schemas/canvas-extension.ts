@@ -166,11 +166,42 @@ export const canvasExtensionCommandSchema = z.object({
   updatedAt: z.string().datetime({ offset: true }),
 })
 
+export const canvasExtensionCommandEventSchema = z.object({
+  id: z.string().uuid(),
+  commandId: z.string().uuid().nullable(),
+  userId: z.string().uuid(),
+  level: z.enum(["info", "success", "warning", "error"]),
+  phase: z.string().min(1).max(80),
+  nodeId: z.string().uuid().nullable(),
+  message: z.string().min(1),
+  details: z.record(z.unknown()),
+  createdAt: z.string().datetime({ offset: true }),
+})
+
+export const canvasExtensionHealthSchema = z.object({
+  authStatus: z.enum(["signed_in", "auth_required", "backend_timeout", "backend_error"]),
+  extensionStatus: z.enum(["connected", "stale", "offline", "unknown"]),
+  activeCommand: canvasExtensionCommandSchema.nullable(),
+  lastEvent: canvasExtensionCommandEventSchema.nullable(),
+  recoverableActions: z.array(z.enum([
+    "sign_in",
+    "retry_state",
+    "wake_extension",
+    "open_canvas",
+    "create_pairing_code",
+    "reload_extension",
+    "stop_command",
+    "resume_import",
+  ])),
+})
+
 export const canvasExtensionStateResponseSchema = z.object({
   success: z.literal(true),
+  health: canvasExtensionHealthSchema,
   session: canvasExtensionSessionSchema.nullable(),
   commands: z.array(canvasExtensionCommandSchema),
   nodes: z.array(canvasExtensionNodeSchema),
+  events: z.array(canvasExtensionCommandEventSchema),
 })
 
 export const canvasExtensionCreateCommandRequestSchema = z.object({
@@ -207,7 +238,11 @@ export const canvasExtensionWorkerNodeSchema = z.object({
 export const canvasExtensionWorkerReportRequestSchema = z.object({
   commandId: z.string().uuid(),
   status: z.enum(["progress", "succeeded", "failed", "cancelled"]),
+  level: z.enum(["info", "success", "warning", "error"]).optional(),
+  phase: z.string().trim().min(1).max(80).optional(),
+  nodeId: z.string().uuid().nullable().optional(),
   message: z.string().trim().max(1000).nullable().optional(),
+  details: z.record(z.unknown()).optional(),
   nodes: z.array(canvasExtensionWorkerNodeSchema).max(500).optional(),
   importedNodes: z.array(z.object({
     nodeId: z.string().uuid(),
@@ -238,4 +273,6 @@ export type CanvasExtensionImportPageResponse = z.infer<typeof canvasExtensionIm
 export type CanvasExtensionNode = z.infer<typeof canvasExtensionNodeSchema>
 export type CanvasExtensionCommand = z.infer<typeof canvasExtensionCommandSchema>
 export type CanvasExtensionSession = z.infer<typeof canvasExtensionSessionSchema>
+export type CanvasExtensionCommandEvent = z.infer<typeof canvasExtensionCommandEventSchema>
+export type CanvasExtensionHealth = z.infer<typeof canvasExtensionHealthSchema>
 export type CanvasExtensionStateResponse = z.infer<typeof canvasExtensionStateResponseSchema>

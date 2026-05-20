@@ -38,6 +38,10 @@ const canvasExtensionControlPlaneMigration = readFileSync(
   "supabase/migrations/20260518191000_canvas_extension_control_plane.sql",
   "utf8",
 )
+const canvasExtensionCommandEventsMigration = readFileSync(
+  "supabase/migrations/20260519180734_canvas_extension_command_events.sql",
+  "utf8",
+)
 
 describe("production Supabase migration", () => {
   it("keeps OAuth tokens outside public tables", () => {
@@ -158,11 +162,19 @@ describe("production Supabase migration", () => {
     expect(canvasExtensionControlPlaneMigration).toContain("create table public.canvas_extension_sessions")
     expect(canvasExtensionControlPlaneMigration).toContain("create table public.canvas_extension_commands")
     expect(canvasExtensionControlPlaneMigration).toContain("create table public.canvas_extension_nodes")
+    expect(canvasExtensionControlPlaneMigration).toContain("create table public.canvas_extension_command_events")
+    expect(canvasExtensionCommandEventsMigration).toContain("create table if not exists public.canvas_extension_command_events")
     expect(canvasExtensionControlPlaneMigration).toContain("alter table public.canvas_extension_sessions enable row level security")
     expect(canvasExtensionControlPlaneMigration).toContain("alter table public.canvas_extension_commands enable row level security")
     expect(canvasExtensionControlPlaneMigration).toContain("alter table public.canvas_extension_nodes enable row level security")
+    expect(canvasExtensionControlPlaneMigration).toContain("alter table public.canvas_extension_command_events enable row level security")
+    expect(canvasExtensionCommandEventsMigration).toContain("alter table public.canvas_extension_command_events enable row level security")
     expect(canvasExtensionControlPlaneMigration).toContain("canvas_extension_nodes_select_own")
+    expect(canvasExtensionControlPlaneMigration).toContain("canvas_extension_command_events_select_own")
+    expect(canvasExtensionCommandEventsMigration).toContain("canvas_extension_command_events_select_own")
     expect(canvasExtensionControlPlaneMigration).not.toContain("access_token")
     expect(canvasExtensionControlPlaneMigration).not.toContain("refresh_token")
+    expect(canvasExtensionCommandEventsMigration).not.toContain("access_token")
+    expect(canvasExtensionCommandEventsMigration).not.toContain("refresh_token")
   })
 })
