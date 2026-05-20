@@ -201,19 +201,21 @@ export default function LandingPage() {
               className="grid grid-cols-1 items-end gap-[clamp(24px,4vw,56px)] border-t border-[var(--rule)] py-[clamp(80px,11vw,160px)] md:grid-cols-[minmax(0,0.55fr)_minmax(0,0.45fr)]"
             >
               <div id="waitlist" className="scroll-mt-24">
-                <SectionEyebrow index="05" label="Early access" />
+                <SectionEyebrow index="05" label="Early access · hand-built" />
                 <h2 className="landing-final-phrase landing-display mt-4 max-w-[18ch] text-[clamp(2rem,4.4vw,3.4rem)] font-semibold leading-[1.0] text-foreground">
                   Stop thinking. <span className="cta-accent-phrase">Start doing.</span>
                 </h2>
-                <p className="mt-4 max-w-[44ch] text-[clamp(1rem,1.4vw,1.125rem)] leading-[1.55] text-foreground/70">
-                  Jarvis is invite-only while it stabilizes. Drop your email and you&apos;ll hear when your
-                  spot opens up.
+                <p className="mt-4 max-w-[48ch] text-[clamp(1rem,1.4vw,1.125rem)] leading-[1.55] text-foreground/70">
+                  This is super-early beta. Every spot is hand-built — any integration, any dashboard,
+                  any quirk you want (yes, even a dolphin bouncing across your screen while you work).
+                  You tell me what your day looks like; I build the secretary that runs it. Priced for a
+                  student, not for a company.
                 </p>
               </div>
               <div className="flex flex-col gap-3">
                 <WaitlistForm variant="anchor" id="anchor-waitlist" />
                 <p className="landing-mark text-[10.5px] text-muted-foreground">
-                  Invites in order. No spam. .edu preferred but not required.
+                  Invites in order · .edu preferred · custom config included
                 </p>
               </div>
             </section>
@@ -221,7 +223,6 @@ export default function LandingPage() {
 
           <LandingFooter />
         </div>
-        <span aria-hidden="true" className="landing-content-scroll-fade" />
       </div>
     </main>
   )
