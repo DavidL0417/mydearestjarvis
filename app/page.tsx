@@ -36,7 +36,7 @@ const steps = [
     number: "03",
     title: "You sit down and start. That’s it.",
     detail:
-      "Open Jarvis and the first thing on screen is exactly what to do for the next 30–90 minutes. No planning, no thinking, no ceremony.",
+      "Open Jarvis and the first thing on screen is exactly what to do for the next 30–90 minutes. No planning, no thinking, no waiting.",
   },
 ]
 
