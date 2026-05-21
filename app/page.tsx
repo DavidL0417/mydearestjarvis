@@ -206,7 +206,7 @@ export default function LandingPage() {
                   Stop thinking. <span className="cta-accent-phrase">Start doing.</span>
                 </h2>
                 <p className="mt-4 max-w-[48ch] text-[clamp(1rem,1.4vw,1.125rem)] leading-[1.55] text-foreground/70">
-                  Currently in super-early beta, so I'm hand-built the app for each individual. 
+                  Currently in super-early beta, so I'm hand-building the app for each individual. 
                   Any integration, any dashboard, any quirk, any UI feature you want. You name it, I build it.
                   Accessibly priced for a college student.
                 </p>
